@@ -7,7 +7,23 @@ from astropy.time import Time
 __all__ = ['read_mpcorb', 'read_sdss_moc', 'read_astorb', 'read_lcdb']
 
 
+def _parse_name(s):
+    """Use sbpy Names to parse an asteroid name string into number, name & designation.
+    Name = name or designation."""
+    try:
+        namedict = Names.parse_asteroid(s)
+        namedict.setdefault('number', -999)
+        namedict.setdefault('desig', 'NULL')
+        namedict.setdefault('name', namedict['desig'])
+    except (TargetNameParseError, AttributeError) as e:
+        #print(s)
+        namedict = None
+    return namedict
+
+
 def _parse_mpc_names_and_epochs(x):
+    """Turn the MPC name into separate number/name/designation, and parse MPC epochs into MJD.
+    Sets objId to be either the number or designation. """
     namedict = _parse_name(x.readableName)
     if namedict is None:
         try:
@@ -31,69 +47,6 @@ def _parse_mpc_names_and_epochs(x):
     return x
 
 
-def _parse_astorb_names_and_epochs(x):
-    if x.numberId >= 0:
-        x.objId = x.numberId
-    else:
-        x.objId = x.Name
-    namedict = _parse_name(x.Name)
-    if namedict is None:
-        x.Desig = x.Name
-    else:
-        x.Desig = namedict['desig']
-    try:
-        x.epoch = _convert_astorb_date(x.epoch)
-    except:
-        print(x.epoch)
-    return x
-
-
-def _parse_sdss_names(x):
-    x.Name = x.Name.replace('_', ' ')
-    namedict = _parse_name(x.Name)
-    if namedict is None:
-        x.Desig = x.Name
-    else:
-        x.Desig = namedict['desig']
-    if x.numberId >= 0:
-        x.objId = x.numberId
-    else:
-        x.objId = x.Name
-    return x
-
-def _parse_lcdb_names(x):
-    namedict = _parse_name(x.Desig)
-    if namedict is not None:
-        x.Desig = namedict['desig']
-    if x.numberId >= 0:
-        x.objId = x.numberId
-    else:
-        x.objId = x.Name
-    return x
-
-
-def _parse_name(s):
-    try:
-        namedict = Names.parse_asteroid(s)
-        namedict.setdefault('number', -999)
-        namedict.setdefault('desig', 'NULL')
-        desig = namedict['desig']
-        namedict.setdefault('name', desig)
-    except (TargetNameParseError, AttributeError) as e:
-        #print(s)
-        namedict = None
-    return namedict
-
-def _mpc_lookup(x):
-    # Convert the single character dates into integers.
-    try:
-        x = int(x)
-    except ValueError:
-        x = ord(x) - 55
-    if x < 0 or x > 31:
-        raise ValueError
-    return x
-
 def _unpack_mpc_date(packed_date):
     # See https://minorplanetcenter.net/iau/info/PackedDates.html
     # for MPC documentation on packed dates.
@@ -111,6 +64,36 @@ def _unpack_mpc_date(packed_date):
     t = Time(isot_string, format='isot', scale='tt')
     return t.mjd
 
+
+def _mpc_lookup(x):
+    # Convert the single character dates into integers.
+    try:
+        x = int(x)
+    except ValueError:
+        x = ord(x) - 55
+    if x < 0 or x > 31:
+        raise ValueError
+    return x
+
+
+def _parse_astorb_names_and_epochs(x):
+    """Turn the astorb name into separate number/name/designation, and parse astorb epochs into MJD."""
+    if x.numberId >= 0:
+        x.objId = x.numberId
+    else:
+        x.objId = x.Name
+    namedict = _parse_name(x.Name)
+    if namedict is None:
+        x.Desig = x.Name
+    else:
+        x.Desig = namedict['desig']
+    try:
+        x.epoch = _convert_astorb_date(x.epoch)
+    except:
+        print(x.epoch)
+    return x
+
+
 def _convert_astorb_date(date):
     date = str(date)
     year = int(date[0:4])
@@ -119,6 +102,34 @@ def _convert_astorb_date(date):
     isot_string = '%d-%02d-%02d' % (year, month, day)
     t = Time(isot_string, format='isot', scale='tt')
     return t.mjd
+
+
+def _parse_sdss_names(x):
+    """Convert the SDSS names into number/name/designation.
+    Sets objId to be the number or designation."""
+    x.Name = x.Name.replace('_', ' ')
+    namedict = _parse_name(x.Name)
+    if namedict is None:
+        x.Desig = x.Name
+    else:
+        x.Desig = namedict['desig']
+    if x.numberId >= 0:
+        x.objId = x.numberId
+    else:
+        x.objId = x.Name
+    return x
+
+
+def _parse_lcdb_names(x):
+    "Parse the LCDB names."
+    namedict = _parse_name(x.Desig)
+    if namedict is not None:
+        x.Desig = namedict['desig']
+    if x.numberId >= 0:
+        x.objId = x.numberId
+    else:
+        x.objId = x.Name
+    return x
 
 
 def read_mpcorb(filename='MPCORB.DAT', header=True):

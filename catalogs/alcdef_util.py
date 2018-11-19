@@ -2,7 +2,10 @@ import os
 import pandas as pd
 import matplotlib.pyplot as plt
 
-# ALCDEF data files can be downloaded from http://alcdef.org/ (just download the entire set of files, then unzip)
+__all__ = ['read_alcdef', 'plot_alcdef']
+
+# ALCDEF data files can be downloaded from http://alcdef.org/
+# (just download the entire set of files, then unzip)
 # ALCDEF data standard is described at http://alcdef.org/docs/ALCDEF_Standard.pdf
 
 def read_alcdef(filename, datadir='.'):
@@ -72,7 +75,7 @@ def read_alcdef(filename, datadir='.'):
     return metadata, lc
 
 
-def plot_lightcurve(metadata, lc, filename):
+def plot_alcdef(metadata, lc, filename):
     """Plot the lightcurve blocks.
 
     Parameters
@@ -89,24 +92,31 @@ def plot_lightcurve(metadata, lc, filename):
     colors = ['g', 'r', 'b', 'y']
     for i in range(len(metadata)):
         plt.figure(figsize=(12, 10))
-        plt.errorbar(lc[i].JD - lc[i].JD[0], lc[i].Mag, yerr=lc[i].DeltaMag, linestyle='', marker='o', markersize=5, color=colors[i % 4])
+        plt.errorbar(lc[i].JD - lc[i].JD[0], lc[i].Mag, yerr=lc[i].DeltaMag,
+                     linestyle='', marker='o', markersize=5, color=colors[i % 4])
         plt.title('%s: Start date %f' % (filename.rstrip('.txt'), lc[i].JD[0]))
-        print('%s block %d: (midpoint %s, %s)' % (filename.rstrip('.txt'), i, metadata[i]['SESSIONDATE'], metadata[i]['SESSIONTIME']))
+        print('%s block %d: (midpoint %s, %s)' % (filename.rstrip('.txt'),
+                                                  i, metadata[i]['SESSIONDATE'], metadata[i]['SESSIONTIME']))
         print('Observed in %s, reporting %s' % (metadata[i]['FILTER'], metadata[i]['MAGBAND']))
         if metadata[i]['REDUCEDMAGS'] == 'AVERAGE':
-            print('Magnitudes have been reduced to unity distance, corrected by %s (AVERAGE)' % metadata[i]['UCORMAG'])
+            print('Magnitudes have been reduced to unity distance, corrected by %s (AVERAGE)'
+                  % metadata[i]['UCORMAG'])
         if metadata[i]['REDUCEDMAGS'] == 'POINT':
-            print('Magnitudes have been reduced to unity distance, per measurement (POINT). Average is %s.' % metadata[i]['UCORMAG'])
+            print('Magnitudes have been reduced to unity distance, per measurement (POINT). Average is %s.'
+                  % metadata[i]['UCORMAG'])
         if metadata[i]['DIFFERMAGS']:
             print('Reported differential magnitudes')
             if metadata[i]['MAGADJUST'] != '0.0':
-                print('A suggested correction of %s could place these onto a standard system' % metadata[i]['MAGADJUST'])
+                print('A suggested correction of %s could place these onto a standard system'
+                      % metadata[i]['MAGADJUST'])
         else:
             print('Reported standard magnitudes, using %s refcat' % metadata[i]['STANDARD'])
         if metadata[i]['LTCAPP'] == 'AVERAGE':
             print('Times are light time corrected by %s (AVERAGE)' % (metadata[i]['LTCDAYS']))
         if metadata[i]['LTCAPP'] == 'POINT':
-            print('Times are light time correct per measurement (POINT). Average is %s.' % (metadata[i]['LTCDAYS']))
+            print('Times are light time correct per measurement (POINT). Average is %s.'
+                  % (metadata[i]['LTCDAYS']))
     plt.figure(figsize=(24, 10))
     for i in range(len(metadata)):
-        plt.errorbar(lc[i].JD, lc[i].Mag, yerr=lc[i].DeltaMag, linestyle='', marker='o', markersize=5, color=colors[i % 4])
+        plt.errorbar(lc[i].JD, lc[i].Mag, yerr=lc[i].DeltaMag,
+                     linestyle='', marker='o', markersize=5, color=colors[i % 4])
