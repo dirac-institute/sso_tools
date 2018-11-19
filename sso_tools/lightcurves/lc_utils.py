@@ -38,7 +38,7 @@ def fetch_alert_data(jd_start=None):
     sso_alert_phot_fix_date = Time('2018-06-18T23:30:00', format='isot', scale='utc')  # photometry fix date
 
     if jd_start is None:
-        jd_start = sso_alert_phot_fix_date
+        jd_start = sso_alert_phot_fix_date.jd
 
     query = 'select * from alerts where ssdistnr >=0 and jd > %f' % (jd_start)
     print('Querying from ZTF alert database: %s' % query)
@@ -103,7 +103,7 @@ def obj_obs(all_sso, name, minJD=None, maxJD=None):
         obj = obj.query('jd < @maxJD')
     # Add the 'corrected' magnitude values --- REPLACE WITH OORB PREDICTED VALUES
     magcorr = obj.magpsf.values - obj.ssmagnr.values
-    obj['magcorr'] = magcorr
+    obj.assign(magcorr = magcorr)
     # And pull out the observations in each filter.
     filterlist = obj.fid.unique()
     o = {}
@@ -136,7 +136,7 @@ def check_astrometry(obj):
     return fig
 
 
-def vis_photometry(obj, o, fulldates=False):
+def vis_photometry(obj, o, name, fulldates=False):
     """Plot the unphased, uncorrected photometry (PSF and aperture).
 
     Parameters
@@ -145,6 +145,8 @@ def vis_photometry(obj, o, fulldates=False):
         The dataframe of all observations of a given object.
     o: dictionary of pd.DataFrames
         Dictionary of dataframes of observations, separated by filter.
+    name: str
+        Name of the object, for plot titles.
     fulldates: bool, opt
         Plot the full dates (True) or just the change in dates after the start (False).
 
@@ -201,7 +203,7 @@ def vis_photometry(obj, o, fulldates=False):
     return fig
 
 
-def vis_corr_photometry(obj, o):
+def vis_corr_photometry(obj, o, name):
     """Plot the unphased, corrected photometry.
 
     Parameters
@@ -284,7 +286,7 @@ def make_periodogram(model):
     fig = plt.figure(figsize=(16, 6))
     plt.subplot(1, 2, 1)
     plt.plot(periods, power)
-    for p in top_periods:
+    for p in model.find_best_periods():
         plt.axvline(p, color='k', linestyle=':')
     plt.xlabel('Period (days)')
     plt.ylabel('Power')
@@ -296,7 +298,7 @@ def make_periodogram(model):
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
     plt.xlim(2, 12)
-    return model, top_periods, model.best_period, fig
+    return periods, power
 
 
 def make_predictions(obj, period, model):
