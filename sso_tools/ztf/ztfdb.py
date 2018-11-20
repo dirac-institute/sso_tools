@@ -1,5 +1,7 @@
 import pandas as pd
 import mysql.connector as mariadb
+from astropy.time import Time
+import matplotlib.pyplot as plt
 
 
 __all__ = ['fetch_alert_data', 'identify_candidates', 'get_obj',
@@ -98,9 +100,9 @@ def get_obj(all_sso, name, minJD=None, maxJD=None, magcol='magpsf'):
         DataFrame containing the object observations, all columns,
         DataFrame containing the minimal columns for lc_utils.
     """
-    obj = obj_obs(all_sso, name, minJD=minJD, maxJD=maxJD)
-    obj = add_magcorr(obj, magcol=magcol)
-    df = translate_df(obj, magcol=magcol)
+    obj = _obj_obs(all_sso, name, minJD=minJD, maxJD=maxJD)
+    obj = _add_magcorr(obj, magcol=magcol)
+    df = _translate_df(obj, magcol=magcol)
     return obj, df
 
 
@@ -154,8 +156,7 @@ def _add_magcorr(obj, magcol='magpsf'):
         raise ValueError('magcol %s should be either magpsf or magap.' % magcol)
     # Add the 'corrected' magnitude values --- REPLACE WITH OORB PREDICTED VALUES
     magcorr = obj[magcol].values - obj.ssmagnr.values
-    obj.assign(magcorr = magcorr)
-    return obj
+    return obj.assign(magcorr = magcorr)
 
 
 def _translate_df(obj, magcol='magpsf'):
@@ -178,9 +179,10 @@ def _translate_df(obj, magcol='magpsf'):
         sigmamag = 'sigmapsf'
     if magcol == 'magap':
         sigmamag = 'sigmagap'
-    newcols = ['objId', 'jd', 'filter', 'mag', 'sigmamag', 'predmag', 'magcorr', 'night']
+    newcols = ['objId', 'jd', 'fid', 'mag', 'sigmamag', 'predmag', 'magcorr', 'night']
     oldcols = ['ssnamenr', 'jd', 'fid', magcol, sigmamag, 'ssmagnr', 'magcorr', 'nid']
-    df = pd.DataFrame([obj[oc] for oc in oldcols], names=newcols)
+    df = obj[oldcols]
+    df.columns = newcols
     return df
 
 
@@ -226,10 +228,10 @@ def vis_psf_ap_photometry(obj, fulldates=False):
     for f in filterlist:
         o = obj.query('fid == @f')
         if fulldates:
-            times = o[f].jd
+            times = o.jd
         else:
-            times = o[f].jd - obj.jd.iloc[0]
-        plt.errorbar(times, o[f].magap, yerr=o[f].sigmagap, color=filterdict[f],
+            times = o.jd - obj.jd.iloc[0]
+        plt.errorbar(times, o.magap, yerr=o.sigmagap, color=filtercolors[f],
                      marker='.', linestyle='')
     if fulldates:
         times = obj.jd
@@ -243,15 +245,15 @@ def vis_psf_ap_photometry(obj, fulldates=False):
     else:
         plt.xlabel('Delta JD', fontsize='x-large')
     plt.ylabel('ApMag', fontsize='x-large')
-    plt.title(name)
+    plt.title(obj.ssnamenr.unique()[0])
     plt.subplot(1, 2, 2)
     for f in filterlist:
         o = obj.query('fid == @f')
         if fulldates:
-            times = o[f].jd
+            times = o.jd
         else:
-            times = o[f].jd - obj.jd.iloc[0]
-        plt.errorbar(times, o[f].magpsf, yerr=o[f].sigmapsf, color=filterdict[f],
+            times = o.jd - obj.jd.iloc[0]
+        plt.errorbar(times, o.magpsf, yerr=o.sigmapsf, color=filtercolors[f],
                      marker='.', linestyle='')
     if fulldates:
         times = obj.jd
@@ -265,9 +267,9 @@ def vis_psf_ap_photometry(obj, fulldates=False):
     else:
         plt.xlabel('Delta JD', fontsize='x-large')
     plt.ylabel('PSF mag', fontsize='x-large')
-    plt.title(name)
+    plt.title(obj.ssnamenr.unique()[0])
     if len(filterlist) > 1:
-        colorname = '%s-%s' % (filterdict_inv[filterlist[0]], filterdict_inv[filterlist[1]])
+        colorname = '%s-%s' % (filterdict[filterlist[0]], filterdict[filterlist[1]])
         color = (obj.query('fid == @filterlist[0]').magpsf.mean()
                  - obj.query('fid == @filterlist[1]').magpsf.mean())
         print('Average color %s = %.2f' % (colorname, color))

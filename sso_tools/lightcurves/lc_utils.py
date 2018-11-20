@@ -2,7 +2,7 @@
 lc_utils
 
 Minimal DataFrame for lightcurve fitting:
-[objId, jd, filter, mag, sigmamag, predmag, magcorr, night]
+[objId, jd, fid, mag, sigmamag, predmag, magcorr, night]
 """
 
 import numpy as np
@@ -11,7 +11,7 @@ from gatspy import periodic
 
 
 __all__ = ['vis_photometry', 'vis_corr_photometry', 'fit_model', 'make_periodogram',
-           'make_predictions', 'plot_unphased', 'phase_times', 'plot_phased']
+           '_make_predictions', 'plot_unphased', 'phase_times', 'plot_phased']
 
 # ZTF filters / integer id's
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
@@ -20,13 +20,13 @@ filtercolors = {1: 'g', 2: 'r', 3: 'y'}
 
 
 def _make_figurelabel(obj):
-    label = 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.night.unique())
-    filterlist = obj.filter.unique()
+    label = 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.night.unique()))
+    filterlist = obj.fid.unique()
     if len(filterlist) > 1:
-        colorname = '%s-%s' % (filterdict_inv[filterlist[0]], filterdict_inv[filterlist[1]])
-        color = (obj.query('filter == @filterlist[0]').magcorr.mean()
-                 - obj.query('filter == @filterlist[1]').magcorr.mean())
-        label += '\nAverage color %s = %.2f' % (colorname, color))
+        colorname = '%s-%s' % (filterdict[filterlist[0]], filterdict[filterlist[1]])
+        color = (obj.query('fid == @filterlist[0]').magcorr.mean()
+                 - obj.query('fid == @filterlist[1]').magcorr.mean())
+        label += '\nAverage color %s = %.2f' % (colorname, color)
     return label
 
 
@@ -43,13 +43,13 @@ def vis_photometry(obj):
     plt.figure
     """
     fig = plt.figure(figsize=(8, 6))
-    for f in obj.filter.unique():
-        o = obj.query('filter == @f')
-        plt.errorbar(o.jd - obj.jd.iloc[0], o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
+    for f in obj.fid.unique():
+        o = obj.query('fid == @f')
+        plt.errorbar(o.jd - obj.jd.iloc[0], o.mag, yerr=o.sigmamag, color=filtercolors[f],
                      marker='.', linestyle='')
     plt.xticks(rotation=90)
     plt.xlabel('delta JD', fontsize='x-large')
-    plt.ylabel('MagCorr (magpsf - ssmagnr)', fontsize='x-large')
+    plt.ylabel('Mag', fontsize='x-large')
     plt.title(obj.objId.unique()[0])
     plt.grid(True, alpha=0.3)
     label = _make_figurelabel(obj)
@@ -72,8 +72,8 @@ def vis_corr_photometry(obj):
     # Look at photometry after subtracting expected magnitude
     # (i.e. subtract an approximate phase curve, but the ZTF predicted values do have errors sometimes)
     fig = plt.figure(figsize=(8, 6))
-    for f in obj.filter.unique():
-        o = obj.query('filter == @f')
+    for f in obj.fid.unique():
+        o = obj.query('fid == @f')
         plt.errorbar(o.jd - obj.jd.iloc[0], o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
                      marker='.', linestyle='')
     plt.xticks(rotation=90)
@@ -109,7 +109,7 @@ def fit_model(obj, Nterms_base=2, Nterms_band=1):
                                           Nterms_band=Nterms_band)
     model.optimizer.period_range = (2.0/24.0, 2.0)
     model.optimizer.first_pass_coverage = 100
-    model.fit(obj.jd, obj.magcorr, obj.sigmamag, obj.filter)
+    model.fit(obj.jd, obj.magcorr, obj.sigmamag, obj.fid)
     top_periods = model.find_best_periods()
     print('Top Periods (and doubles):')
     print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
@@ -153,13 +153,13 @@ def make_periodogram(model):
     return periods, power
 
 
-def _make_predictions(obj, period, model):
+def _make_predictions(tfit, period, model):
     """Generate predicted magnitudes at the times of the observations.
 
     Parameters
     ----------
-    obj: pd.DataFrame
-        Dataframe containing the observations of the object.
+    times: np.ndarray
+        The times to create predictions for.
     period: float
         Period to use for the predictions.
     model: gatspy model
@@ -171,11 +171,10 @@ def _make_predictions(obj, period, model):
         Time of the observations, Magnitude of the predicted observations in the first filter (g),
         and Magnitude of the predicted observations in the second filter (r)."""
     # Generate predicted data, using one of the periods.
-    tfit = np.arange(obj.jd.min(), obj.jd.max(), 0.002)
     filts = np.ones(len(tfit))
     pred = model.predict(tfit, filts=filts, period=period)
     pred2 = model.predict(tfit, filts=filts+1, period=period)
-    return tfit, pred, pred2
+    return pred, pred2
 
 
 def plot_unphased(obj, period, model):
@@ -195,11 +194,12 @@ def plot_unphased(obj, period, model):
     plt.figure
     """
     fig = plt.figure(figsize=(10, 8))
-    tfit, pred, pred2 = _make_predictions(obj, period, model)
-    plt.plot(tfit, pred, color=filtercolors[1], linestyle=':', alpha=0.2)
-    plt.plot(tfit, pred2, color=filtercolors[2], linestyle=':', alpha=0.2)
-    for f in obj.filter.unique():
-        o = obj.query('filter == @f')
+    times = np.arange(obj.jd.min(), obj.jd.max() + 0.01, 0.01)
+    pred, pred2 = _make_predictions(times, period, model)
+    plt.plot(times, pred, color=filtercolors[1], linestyle=':', alpha=0.2)
+    plt.plot(times, pred2, color=filtercolors[2], linestyle=':', alpha=0.2)
+    for f in obj.fid.unique():
+        o = obj.query('fid == @f')
         plt.errorbar(o.jd, o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
                      marker='.', linestyle='')
     label = _make_figurelabel(obj)
@@ -209,7 +209,7 @@ def plot_unphased(obj, period, model):
     plt.figtext(0.15, 0.8, label)
     plt.xlabel('JD', fontsize='x-large')
     plt.ylabel('MagCorr', fontsize='x-large')
-    plt.title(obj.objId.unique())
+    plt.title(obj.objId.unique()[0])
     return fig
 
 
@@ -220,7 +220,7 @@ def phase_times(times, period, offset=0):
     return phased
 
 
-def plot_phased(obj, o, period, model, name):
+def plot_phased(obj, period, model):
     # Phased
     """
     tfit = np.arange(0, period, 0.002)
@@ -228,14 +228,18 @@ def plot_phased(obj, o, period, model, name):
     pred = model.predict(tfit, filts=filts, period=period)
     pred2 = model.predict(tfit, filts=filts+1, period=period)
     """
-    tfit, pred, pred2 = _make_predictions(obj, period, model)
+    times = np.arange(0, period, 0.0001)
+    pred, pred2 = _make_predictions(times, period, model)
+    phase_t = phase_times(times, period)
     fig = plt.figure(figsize=(10, 8))
-    plt.plot(phase_times(tfit, period), pred, color=filtercolors[1], linestyle=':')
-    plt.plot(phase_times(tfit, period), pred2, color=filtercolors[2], linestyle=':')
-    for f in obj.filter.unique():
-        o = obj.query('filter == @f')
+    plt.plot(phase_t, pred, color=filtercolors[1], 
+             linestyle=':')
+    plt.plot(phase_t, pred2, color=filtercolors[2], 
+             linestyle=':')
+    for f in obj.fid.unique():
+        o = obj.query('fid == @f')
         plt.errorbar(phase_times(o.jd, period), o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
-                     marker='.', linestyle='')
+                     marker='.', markersize=10, linestyle='')
     label = _make_figurelabel(obj)
     objgr = np.mean(pred2 - pred)
     label += ' (%.2f)' % objgr
@@ -243,6 +247,6 @@ def plot_phased(obj, o, period, model, name):
     plt.figtext(0.15, 0.8, label)
     plt.xlabel('Lightcurve Phase', fontsize='x-large')
     plt.ylabel('MagCorr', fontsize='x-large')
-    plt.title(name)
+    plt.title(obj.objId.unique()[0])
     plt.grid(True, alpha=0.3)
     return fig
