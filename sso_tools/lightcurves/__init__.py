@@ -1,5 +1,5 @@
 """
-sso_tools: lightcurve
+sso_tools.lightcurve
 """
 
 from .lc_utils import *
