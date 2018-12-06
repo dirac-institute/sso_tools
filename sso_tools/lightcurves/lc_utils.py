@@ -4,13 +4,14 @@ lc_utils
 Minimal DataFrame for lightcurve fitting:
 [objId, jd, fid, mag, sigmamag, predmag, magcorr, night]
 """
-
+import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from gatspy import periodic
 
 
-__all__ = ['vis_photometry', 'vis_corr_photometry', 'fit_model', 'make_periodogram',
+__all__ = ['vis_photometry', 'vis_corr_photometry', 'fit_model', '_print_top_periods', 
+           'make_auto_periodogram', 'make_linear_periodogram',
            '_make_predictions', 'plot_unphased', 'phase_times', 'plot_phased']
 
 # ZTF filters / integer id's
@@ -18,6 +19,9 @@ filterdict = {1: 'g', 2: 'r', 3: 'i'}
 filterdict_inv = {'g': 1, 'r': 2, 'i': 3}
 filtercolors = {1: 'g', 2: 'r', 3: 'y'}
 
+# Period finding range, in days.
+min_period = 1.0/24.0
+max_period = 48.0/24.0
 
 def _make_figurelabel(obj):
     label = 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.night.unique()))
@@ -107,25 +111,38 @@ def fit_model(obj, Nterms_base=2, Nterms_band=1):
     model = periodic.LombScargleMultiband(fit_period=True,
                                           Nterms_base=Nterms_base,
                                           Nterms_band=Nterms_band)
-    model.optimizer.period_range = (2.0/24.0, 2.0)
-    model.optimizer.first_pass_coverage = 100
+    big_period = np.max([max_period, (obj.jd.max() - obj.jd.min())])
+    model.optimizer.period_range = (min_period, big_period)
+    model.optimizer.first_pass_coverage = 200
     model.fit(obj.jd, obj.magcorr, obj.sigmamag, obj.fid)
     top_periods = model.find_best_periods()
-    print('Top Periods (and doubles):')
-    print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
-          ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in top_periods if p > 1]))
-    print()
-    print('Best fit period: %.3f hours' % (model.best_period * 24))
     return model, model.best_period, top_periods
 
 
-def make_periodogram(model):
+def _print_top_periods(top_periods, model, outfile=None):
+    if outfile is None:
+        print('Top Periods (and doubles):')
+        print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
+              ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in top_periods if p > 1]))
+        print('Best fit period: %.3f hours' % (model.best_period * 24))
+        print()
+    else:
+        print('Top Periods (and doubles):', file=outfile)
+        print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
+              ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in top_periods if p > 1]), file=outfile)
+        print('Best fit period: %.3f hours' % (model.best_period * 24), file=outfile)
+        print(file=outfile)
+
+
+def make_auto_periodogram(model, top_periods=None):
     """Plot the periodogram for the model (after fit).
 
     Parameters
     ----------
     model: periodic.LombScargleMultiBand model
         Gatspy model, already fit.
+    top_periods: list of floats, opt
+        model.find_best_periods result (already calculated, but if None then will recalculate).
 
     Returns
     -------
@@ -136,11 +153,12 @@ def make_periodogram(model):
     periods, power = model.periodogram_auto(oversampling=100, nyquist_factor=5)
     fig = plt.figure(figsize=(16, 6))
     plt.subplot(1, 2, 1)
-    plt.plot(periods, power)
-    top_periods = model.find_best_periods()
+    plt.plot(periods * 24, power)
+    if top_periods is None:
+        top_periods = model.find_best_periods()
     for p in top_periods:
-        plt.axvline(p, color='k', linestyle=':')
-    plt.xlabel('Period (days)')
+        plt.axvline(p*24, color='k', linestyle=':')
+    plt.xlabel('Period (hours)')
     plt.ylabel('Power')
     plt.xlim(0, 3)
     plt.subplot(1, 2, 2)
@@ -150,7 +168,48 @@ def make_periodogram(model):
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
     plt.xlim(2, 12)
-    return periods, power
+    return periods, power, fig
+
+
+def make_linear_periodogram(model, top_periods=None):
+    """Plot the periodogram for the model (after fit).                                                                                                  
+
+    Parameters
+    ----------
+    model: periodic.LombScargleMultiBand model
+        Gatspy model, already fit.
+    top_periods: list of floats, opt 
+        model.find_best_periods result (already calculated, but if None then will recalculate).
+                                                                                               
+    Returns
+    -------
+    periods, scores, plt.figure 
+        Periods and scores from periodogram calculation, and figure.
+    """
+    # Look at the periodogram
+    periods = np.linspace(min_period, max_period, 100000)
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        scores = model.score(periods)
+
+    fig = plt.figure(figsize=(16, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(periods * 24, scores)
+    if top_periods is None:
+        top_periods = model.find_best_periods()
+    for p in top_periods:
+        plt.axvline(p * 24, color='k', linestyle=':')
+    plt.xlabel('Period (hours)')
+    plt.ylabel('Power')
+    plt.xlim(0, 3)
+    plt.subplot(1, 2, 2)
+    plt.plot(periods * 24, scores)
+    for p in top_periods:
+        plt.axvline(p*24, color='k', linestyle=':')
+    plt.xlabel('Period (hours)')
+    plt.ylabel('Power')
+    plt.xlim(2, 12)
+    return periods, scores, fig
 
 
 def _make_predictions(tfit, period, model):
@@ -242,11 +301,11 @@ def plot_phased(obj, period, model):
                      marker='.', markersize=10, linestyle='')
     label = _make_figurelabel(obj)
     objgr = np.mean(pred2 - pred)
-    label += ' (%.2f)' % objgr
+    label += ' (%.2f fit g-r)' % objgr
     label += '\nPeriod %.2f hours' % (period * 24)
     plt.figtext(0.15, 0.8, label)
     plt.xlabel('Lightcurve Phase', fontsize='x-large')
     plt.ylabel('MagCorr', fontsize='x-large')
     plt.title(obj.objId.unique()[0])
     plt.grid(True, alpha=0.3)
-    return fig
+    return fig, objgr
