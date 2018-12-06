@@ -111,7 +111,7 @@ def fit_model(obj, Nterms_base=2, Nterms_band=1):
     model = periodic.LombScargleMultiband(fit_period=True,
                                           Nterms_base=Nterms_base,
                                           Nterms_band=Nterms_band)
-    big_period = np.max([max_period, (obj.jd.max() - obj.jd.min())])
+    big_period = np.min([max_period, (obj.jd.max() - obj.jd.min())])
     model.optimizer.period_range = (min_period, big_period)
     model.optimizer.first_pass_coverage = 200
     model.fit(obj.jd, obj.magcorr, obj.sigmamag, obj.fid)
