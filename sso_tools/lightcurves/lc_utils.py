@@ -157,33 +157,33 @@ def make_auto_periodogram(model, top_periods=None):
     if top_periods is None:
         top_periods = model.find_best_periods()
     for p in top_periods:
-        plt.axvline(p*24, color='k', linestyle=':')
+        plt.axvline(p * 24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    plt.xlim(0, 3)
+    #plt.xlim(0, 3)
     plt.subplot(1, 2, 2)
     plt.plot(periods * 24, power)
     for p in top_periods:
         plt.axvline(p*24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    plt.xlim(2, 12)
+    #plt.xlim(2, 12)
     return periods, power, fig
 
 
 def make_linear_periodogram(model, top_periods=None):
-    """Plot the periodogram for the model (after fit).                                                                                                  
+    """Plot the periodogram for the model (after fit).
 
     Parameters
     ----------
     model: periodic.LombScargleMultiBand model
         Gatspy model, already fit.
-    top_periods: list of floats, opt 
+    top_periods: list of floats, opt
         model.find_best_periods result (already calculated, but if None then will recalculate).
-                                                                                               
+
     Returns
     -------
-    periods, scores, plt.figure 
+    periods, scores, plt.figure
         Periods and scores from periodogram calculation, and figure.
     """
     # Look at the periodogram
@@ -201,14 +201,14 @@ def make_linear_periodogram(model, top_periods=None):
         plt.axvline(p * 24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    plt.xlim(0, 3)
+    #plt.xlim(0, 3)
     plt.subplot(1, 2, 2)
     plt.plot(periods * 24, scores)
     for p in top_periods:
         plt.axvline(p*24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    plt.xlim(2, 12)
+    #plt.xlim(2, 12)
     return periods, scores, fig
 
 
