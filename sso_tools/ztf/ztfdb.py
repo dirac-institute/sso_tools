@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 
 __all__ = ['fetch_alert_data', 'identify_candidates', 'get_obj',
            '_obj_obs', '_add_magcorr', '_translate_df',
+           'ztfname_to_designation',
            'check_astrometry', 'vis_psf_ap_photometry']
 
 # ZTF filters / integer id's
@@ -78,14 +79,14 @@ def identify_candidates(all_sso, min_obs=40, dist_cutoff=10):
     return objnames
 
 
-def get_obj(all_sso, name, minJD=None, maxJD=None, magcol='magpsf'):
+def get_obj(all_sso, ztfname, minJD=None, maxJD=None, magcol='magpsf'):
     """Pull out the observations of a given object.
 
     Parameters
     ----------
     all_sso: pd.DataFrame
         DataFrame with observations of all objects.
-    name: str
+    ztfname: str
         Name (number or designation) of object to pull out of all_sso
     minJD: float, opt
         Minimum JD to pull out of DataFrame. Default None == no minimum.
@@ -100,20 +101,20 @@ def get_obj(all_sso, name, minJD=None, maxJD=None, magcol='magpsf'):
         DataFrame containing the object observations, all columns,
         DataFrame containing the minimal columns for lc_utils.
     """
-    obj = _obj_obs(all_sso, name, minJD=minJD, maxJD=maxJD)
+    obj = _obj_obs(all_sso, ztfname, minJD=minJD, maxJD=maxJD)
     obj = _add_magcorr(obj, magcol=magcol)
     df = _translate_df(obj, magcol=magcol)
     return obj, df
 
 
-def _obj_obs(all_sso, name, minJD=None, maxJD=None):
+def _obj_obs(all_sso, ztfname, minJD=None, maxJD=None):
     """Pull out the observations of a given object.
 
     Parameters
     ----------
     all_sso: pd.DataFrame
         DataFrame with observations of all objects.
-    name: str
+    ztfname: str
         Name (number or designation) of object to pull out of all_sso
     minJD: float, opt
         Minimum JD to pull out of DataFrame. Default None == no minimum.
@@ -125,7 +126,7 @@ def _obj_obs(all_sso, name, minJD=None, maxJD=None):
     pd.DataFrame
         DataFrame containing the object observations
     """
-    obj = all_sso.query('ssnamenr == @name')
+    obj = all_sso.query('ssnamenr == @ztfname')
     if minJD is not None:
         obj = obj.query('jd > @minJD')
     if maxJD is not None:
@@ -184,6 +185,34 @@ def _translate_df(obj, magcol='magpsf'):
     df = obj[oldcols]
     df.columns = newcols
     return df
+
+
+def ztfname_to_designation(ztfname):
+    """Translate the ZTF name (no spaces, includes 0's) into an MPC style designation.
+
+    Parameters
+    ----------
+    ztfname: str
+
+    Returns
+    -------
+    str
+    """
+    # Is it a pure number? if so, no conversion needed.
+    try:
+        desig = int(ztfname)
+    # Otherwise some conversion required. Perhaps could get away with only last bit of this?
+    except ValueError:
+        if ztfname[1] == '/':
+            i = 6
+        else:
+            i = 4
+        desig = ztfname[0:i] + ' ' + ztfname[i:i + 2]
+        i += 2
+        val = int(ztfname[i:])
+        if val > 0:
+            desig += str(int(ztfname[i:]))
+    return desig
 
 
 def check_astrometry(obj):
