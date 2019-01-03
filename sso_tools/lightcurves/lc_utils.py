@@ -160,14 +160,13 @@ def make_auto_periodogram(model, top_periods=None):
         plt.axvline(p * 24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    #plt.xlim(0, 3)
     plt.subplot(1, 2, 2)
     plt.plot(periods * 24, power)
     for p in top_periods:
         plt.axvline(p*24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    #plt.xlim(2, 12)
+    plt.xlim(0, 10)
     return periods, power, fig
 
 
@@ -201,14 +200,13 @@ def make_linear_periodogram(model, top_periods=None):
         plt.axvline(p * 24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    #plt.xlim(0, 3)
     plt.subplot(1, 2, 2)
     plt.plot(periods * 24, scores)
     for p in top_periods:
         plt.axvline(p*24, color='k', linestyle=':')
     plt.xlabel('Period (hours)')
     plt.ylabel('Power')
-    #plt.xlim(2, 12)
+    plt.xlim(0, 10)
     return periods, scores, fig
 
 

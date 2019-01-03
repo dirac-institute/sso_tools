@@ -1,3 +1,4 @@
+import numpy as np
 import pandas as pd
 import mysql.connector as mariadb
 from astropy.time import Time
@@ -5,7 +6,8 @@ import matplotlib.pyplot as plt
 import lsst.sims.movingObjects as mo
 from .objectInfo import queryJPL
 
-__all__ = ['fetch_alert_data', 'identify_candidates', 'get_obj',
+__all__ = ['fetch_alert_data', 'read_alert_datafile',
+           'identify_candidates', 'get_obj',
            '_obj_obs', '_add_ztf_magcorr', '_add_oorb_magcorr', '_translate_df',
            'ztfname_to_designation',
            'check_astrometry', 'vis_psf_ap_photometry']
@@ -55,6 +57,11 @@ def fetch_alert_data(jd_start=None):
     return all_sso
 
 
+def read_alert_datafile(filename):
+    all_sso = pd.read_csv(filename, low_memory=False)
+    return all_sso
+
+
 def identify_candidates(all_sso, min_obs=40, dist_cutoff=10):
     """Identify the objects which might be lightcurve determination candidates.
 
@@ -82,7 +89,7 @@ def identify_candidates(all_sso, min_obs=40, dist_cutoff=10):
     return objnames
 
 
-def get_obj(all_sso, ztfname, minJD=None, maxJD=None, magcol='magpsf'):
+def get_obj(all_sso, ztfname, minJD=None, maxJD=None, magcol='magpsf', pred='oo'):
     """Pull out the observations of a given object.
 
     Parameters
@@ -105,8 +112,9 @@ def get_obj(all_sso, ztfname, minJD=None, maxJD=None, magcol='magpsf'):
         DataFrame containing the minimal columns for lc_utils.
     """
     obj = _obj_obs(all_sso, ztfname, minJD=minJD, maxJD=maxJD)
-    obj = _add_magcorr(obj, magcol=magcol)
-    df = _translate_df(obj, magcol=magcol)
+    obj = _add_ztf_magcorr(obj, magcol=magcol)
+    obj = _add_oorb_magcorr(obj, magcol=magcol)
+    df = _translate_df(obj, magcol=magcol, pred=pred)
     return obj, df
 
 
@@ -160,7 +168,7 @@ def _add_ztf_magcorr(obj, magcol='magpsf'):
         raise ValueError('magcol %s should be either magpsf or magap.' % magcol)
     # Add the 'corrected' magnitude values using ZTF values.
     magcorr = obj[magcol].values - obj.ssmagnr.values
-    return obj.assign(magcorrZTF = magcorr)
+    return obj.assign(magcorrZTF=magcorr)
 
 
 def _add_oorb_magcorr(obj, magcol='magpsf'):
@@ -185,16 +193,22 @@ def _add_oorb_magcorr(obj, magcol='magpsf'):
     orbit = queryJPL(designation)
     orb = mo.Orbits()
     orb.setOrbits(orbit)
-    pyorb.setOrbits(orb)
-    ephs = pyorb.generateEphemerides(obj['jd'] - 2400000.5, obscode=obscode)
+    pyOrb.setOrbits(orb)
+    ephs = pyOrb.generateEphemerides(obj['jd'] - 2400000.5, obscode='I41')
+    # The predicted magnitudes from PyOrb can be way off the reported ZTF mags.
+    # Not sure why -- zeropoints? filters? (?) -- but add a correction.
     predmag = ephs[0]['magV']
-    obj.assign(magOO = predmag)
+    midpoint = np.where(obj['jd'] == np.median(obj['jd']))[0]
+    predmag += obj[magcol].values[midpoint] - predmag[midpoint]
     magcorr = obj[magcol].values - predmag
-    obj.assign(magcorrOO = magcorr)
-    return obj
+    return obj.assign(magOO=predmag, magcorrOO=magcorr,
+                      phaseangle=ephs[0]['phase'],
+                      heliodist=ephs[0]['helio_dist'],
+                      geodist=ephs[0]['geo_dist'],
+                      velocity=ephs[0]['velocity'])
 
 
-def _translate_df(obj, magcol='magpsf', predmagcol='magOO', magcorrcol='magcorrOO'):
+def _translate_df(obj, magcol='magpsf', pred='oo'):
     """Translate object observation DataFrame into the columns/format for lc_utils code.
 
     Parameters
@@ -210,12 +224,21 @@ def _translate_df(obj, magcol='magpsf', predmagcol='magOO', magcorrcol='magcorrO
     """
     if magcol not in ['magpsf', 'magap']:
         raise ValueError('magcol %s should be either magpsf or magap.' % magcol)
+    pred = pred.lower()
+    if pred not in ['oo', 'ztf']:
+        raise ValueError('pred %s should be either oo or ztf.' % pred)
     if magcol == 'magpsf':
         sigmamag = 'sigmapsf'
     if magcol == 'magap':
         sigmamag = 'sigmagap'
-    newcols = ['objId', 'jd', 'fid', 'mag', 'sigmamag', 'predmag', 'magcorr', 'night']
-    oldcols = ['ssnamenr', 'jd', 'fid', magcol, sigmamag, predmagcol, magcorrcol, 'nid']
+    if pred == 'oo':
+        predmagcol = 'magOO'
+        magcorrcol = 'magcorrOO'
+    else:
+        predmagcol = 'ssmagnr'
+        magcorrcol = 'magcorrZTF'
+    newcols = ['objId', 'jd', 'fid', 'mag', 'sigmamag', 'predmag', 'magcorr', 'night', 'phaseangle']
+    oldcols = ['ssnamenr', 'jd', 'fid', magcol, sigmamag, predmagcol, magcorrcol, 'nid', 'phaseangle']
     df = obj[oldcols]
     df.columns = newcols
     return df
@@ -271,7 +294,7 @@ def check_astrometry(obj):
     return fig
 
 
-def vis_psf_ap_photometry(obj, fulldates=False):
+def vis_psf_ap_photometry(obj, fulldates=False, fullEph=True):
     """Plot the unphased, uncorrected photometry (PSF and aperture).
 
     Parameters
@@ -285,6 +308,26 @@ def vis_psf_ap_photometry(obj, fulldates=False):
     -------
     plt.figure
     """
+    ephMags = None
+    if fullEph:
+        try:
+            designation = ztfname_to_designation(obj['ssnamenr'].iloc[0])
+            orbit = queryJPL(designation)
+            orb = mo.Orbits()
+            orb.setOrbits(orbit)
+            pyOrb.setOrbits(orb)
+            t = np.arange(obj.jd.min(), obj.jd.max()+0.5, 1)
+            ephs = pyOrb.generateEphemerides(t - 2400000.5, obscode='I41')
+            # match near midpoint of observations
+            dt = abs(t - np.median(obj.jd))
+            midpointEphs = np.where(dt == min(dt))[0]
+            offset = ephs[0]['magV'][midpointEphs] - obj.magpsf.median()
+            print(ephs[0]['magV'][midpointEphs], obj.magpsf.median(), offset)
+            ephMags = ephs[0]['magV'] - offset
+            if ~fulldates:
+                t = t - obj.jd.iloc[0]
+        except:
+            raise
     fig = plt.figure(figsize=(16, 6))
     plt.subplot(1, 2, 1)
     filterlist = obj.fid.unique()
@@ -300,7 +343,10 @@ def vis_psf_ap_photometry(obj, fulldates=False):
         times = obj.jd
     else:
         times = obj.jd - obj.jd.iloc[0]
-    plt.plot(times, obj.ssmagnr)
+    plt.plot(times, obj.ssmagnr, 'c-')
+    plt.plot(times, obj.magOO, 'r-')
+    if ephMags is not None:
+        plt.plot(t, ephMags, 'r:')
     plt.figtext(0.15, 0.8, 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.nid.unique())))
     plt.xticks(rotation=90)
     if fulldates:
@@ -322,7 +368,10 @@ def vis_psf_ap_photometry(obj, fulldates=False):
         times = obj.jd
     else:
         times = obj.jd - obj.jd.iloc[0]
-    plt.plot(times, obj.ssmagnr)
+    plt.plot(times, obj.ssmagnr, 'c-')
+    plt.plot(times, obj.magOO, 'r-')
+    if ephMags is not None:
+        plt.plot(t, ephMags, 'r:')
     plt.figtext(0.58, 0.8, 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.nid.unique())))
     plt.xticks(rotation=90)
     if fulldates:

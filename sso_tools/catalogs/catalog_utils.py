@@ -16,7 +16,6 @@ def _parse_name(s):
         namedict.setdefault('desig', 'NULL')
         namedict.setdefault('name', namedict['desig'])
     except (TargetNameParseError, AttributeError) as e:
-        #print(s)
         namedict = None
     return namedict
 
@@ -58,9 +57,10 @@ def _unpack_mpc_date(packed_date):
     # Month is encoded in third column.
     month = _mpc_lookup(packed_date[3])
     day = _mpc_lookup(packed_date[4])
-    if len(packed_date) > 5:
-        fractional_day = packed_date[5:]
     isot_string = '%d-%02d-%02d' % (year, month, day)
+    if len(packed_date) > 5:
+        fractional_day = float(packed_date[5:])
+        isot_string += '.%f' % fractional_day
     t = Time(isot_string, format='isot', scale='tt')
     return t.mjd
 
@@ -108,6 +108,7 @@ def _parse_sdss_names(x):
     """Convert the SDSS names into number/name/designation.
     Sets objId to be the number or designation."""
     x.Name = x.Name.replace('_', ' ')
+    """
     namedict = _parse_name(x.Name)
     if namedict is None:
         x.Desig = x.Name
@@ -117,6 +118,7 @@ def _parse_sdss_names(x):
         x.objId = x.numberId
     else:
         x.objId = x.Name
+    """
     return x
 
 
@@ -132,7 +134,7 @@ def _parse_lcdb_names(x):
     return x
 
 
-def read_mpcorb(filename='MPCORB.DAT', header=True):
+def read_mpcorb(filename='MPCORB.DAT', header=True, parse_names=True):
     """Read Minor Planet Center Orbit Database
     File contains published orbital elements for all numbered and unnumbered
     multi-opposition minor planets.
@@ -171,7 +173,8 @@ def read_mpcorb(filename='MPCORB.DAT', header=True):
     mpc['Name'] = np.empty(len(mpc), str)
     mpc['Desig'] = np.empty(len(mpc), str)
     mpc['objId'] = np.empty(len(mpc), str)
-    mpc = mpc.apply(_parse_mpc_names_and_epochs, axis=1)
+    if parse_names:
+        mpc = mpc.apply(_parse_mpc_names_and_epochs, axis=1)
     return mpc
 
 
@@ -237,9 +240,9 @@ def read_sdss_moc(filename='ADR4.dat'):
            'meanAnomaly','elemCatalogId', 'aProper', 'eProper', 'siniProper' ]
     # a* color = 0.89 (g - r) + 0.45 (r - i) - 0.57
     moc = pd.read_table(filename, delim_whitespace=True, names=names, usecols=names)
-    moc['Desig'] = np.empty(len(moc), str)
-    moc['objId'] = np.empty(len(moc), str)
-    moc = moc.apply(_parse_sdss_names, axis=1)
+    #moc['Desig'] = np.empty(len(moc), str)
+    #moc['objId'] = np.empty(len(moc), str)
+    #moc = moc.apply(_parse_sdss_names, axis=1)
     return moc
 
 
