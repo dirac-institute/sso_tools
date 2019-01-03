@@ -2,10 +2,11 @@ import pandas as pd
 import mysql.connector as mariadb
 from astropy.time import Time
 import matplotlib.pyplot as plt
-
+import lsst.sims.movingObjects as mo
+from .objectInfo import queryJPL
 
 __all__ = ['fetch_alert_data', 'identify_candidates', 'get_obj',
-           '_obj_obs', '_add_magcorr', '_translate_df',
+           '_obj_obs', '_add_ztf_magcorr', '_add_oorb_magcorr', '_translate_df',
            'ztfname_to_designation',
            'check_astrometry', 'vis_psf_ap_photometry']
 
@@ -13,6 +14,8 @@ __all__ = ['fetch_alert_data', 'identify_candidates', 'get_obj',
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
 filterdict_inv = {'g': 1, 'r': 2, 'i': 3}
 filtercolors = {1: 'g', 2: 'r', 3: 'y'}
+
+pyOrb = mo.PyOrbEphemerides()
 
 
 def fetch_alert_data(jd_start=None):
@@ -138,7 +141,7 @@ def _obj_obs(all_sso, ztfname, minJD=None, maxJD=None):
     return obj
 
 
-def _add_magcorr(obj, magcol='magpsf'):
+def _add_ztf_magcorr(obj, magcol='magpsf'):
     """Add the corrected (for distance and phase angle) magnitudes.
 
     Parameters
@@ -155,12 +158,43 @@ def _add_magcorr(obj, magcol='magpsf'):
     """
     if magcol not in ['magpsf', 'magap']:
         raise ValueError('magcol %s should be either magpsf or magap.' % magcol)
-    # Add the 'corrected' magnitude values --- REPLACE WITH OORB PREDICTED VALUES
+    # Add the 'corrected' magnitude values using ZTF values.
     magcorr = obj[magcol].values - obj.ssmagnr.values
-    return obj.assign(magcorr = magcorr)
+    return obj.assign(magcorrZTF = magcorr)
 
 
-def _translate_df(obj, magcol='magpsf'):
+def _add_oorb_magcorr(obj, magcol='magpsf'):
+    """Add the corrected (for distance and phase angle) magnitudes.
+
+    Parameters
+    ----------
+    obj: pd.DataFrame
+        DataFrame with observations of this object.
+    magcol: str, opt
+        Name of the dataframe column to use for the original magnitudes. Default magpsf.
+
+    Returns
+    -------
+    pd.DataFrame
+        DataFrame containing the object observations, plus a corrected magnitude.
+    """
+    if magcol not in ['magpsf', 'magap']:
+        raise ValueError('magcol %s should be either magpsf or magap.' % magcol)
+    # Add the 'corrected' magnitude values using OOrb predicted values.
+    designation = ztfname_to_designation(obj['ssnamenr'].iloc[0])
+    orbit = queryJPL(designation)
+    orb = mo.Orbits()
+    orb.setOrbits(orbit)
+    pyorb.setOrbits(orb)
+    ephs = pyorb.generateEphemerides(obj['jd'] - 2400000.5, obscode=obscode)
+    predmag = ephs[0]['magV']
+    obj.assign(magOO = predmag)
+    magcorr = obj[magcol].values - predmag
+    obj.assign(magcorrOO = magcorr)
+    return obj
+
+
+def _translate_df(obj, magcol='magpsf', predmagcol='magOO', magcorrcol='magcorrOO'):
     """Translate object observation DataFrame into the columns/format for lc_utils code.
 
     Parameters
@@ -181,7 +215,7 @@ def _translate_df(obj, magcol='magpsf'):
     if magcol == 'magap':
         sigmamag = 'sigmagap'
     newcols = ['objId', 'jd', 'fid', 'mag', 'sigmamag', 'predmag', 'magcorr', 'night']
-    oldcols = ['ssnamenr', 'jd', 'fid', magcol, sigmamag, 'ssmagnr', 'magcorr', 'nid']
+    oldcols = ['ssnamenr', 'jd', 'fid', magcol, sigmamag, predmagcol, magcorrcol, 'nid']
     df = obj[oldcols]
     df.columns = newcols
     return df
