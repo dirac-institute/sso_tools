@@ -50,7 +50,7 @@ def queryJPL(designation):
         fullname = sbdb['object']['des']
     orbit = pd.Series(data={'des': sbdb['object']['des'],
                             'fullname': fullname,
-                            'FORMAT': 'COM',
+                            'FORMAT': 'KEP',
                             'a': orbval['a'].to('AU'),
                             'q': orbval['q'].to('AU'),
                             'e': float(orbval['e']),
@@ -273,7 +273,7 @@ class AsteroidObj():
             times = self.obs.jd
         else:
             times = self.obs.jd - t0
-        plt.plot(times, self.obs.ssmagnr, 'c-')
+        #plt.plot(times, self.obs.ssmagnr, 'c-')
         if self.ephMags is not None:
             t = self.ephMags['t']
             if not fulldates:
@@ -301,7 +301,7 @@ class AsteroidObj():
             times = self.obs.jd
         else:
             times = self.obs.jd - t0
-        plt.plot(times, self.obs.ssmagnr, 'c-')
+        #plt.plot(times, self.obs.ssmagnr, 'c-')
         if self.ephMags is not None:
             t = self.ephMags['t']
             if not fulldates:
