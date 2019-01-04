@@ -3,273 +3,20 @@ lc_utils
 
 Minimal DataFrame for lightcurve fitting:
 [objId, jd, fid, mag, sigmamag, predmag, magcorr, night]
+
+Because of how magcorr is generated,
 """
 import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from gatspy import periodic
 
-
-__all__ = ['vis_photometry', 'vis_corr_photometry', 'fit_model', '_print_top_periods', 
-           'make_auto_periodogram', 'make_linear_periodogram',
-           '_make_predictions', 'plot_unphased', 'phase_times', 'plot_phased']
+__all__ = ['phase_times', 'LCObject']
 
 # ZTF filters / integer id's
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
 filterdict_inv = {'g': 1, 'r': 2, 'i': 3}
 filtercolors = {1: 'g', 2: 'r', 3: 'y'}
-
-# Period finding range, in days.
-min_period = 1.0/24.0
-max_period = 48.0/24.0
-
-def _make_figurelabel(obj):
-    label = 'Nobs = %d, Nnights = %d' % (len(obj), len(obj.night.unique()))
-    filterlist = obj.fid.unique()
-    if len(filterlist) > 1:
-        colorname = '%s-%s' % (filterdict[filterlist[0]], filterdict[filterlist[1]])
-        color = (obj.query('fid == @filterlist[0]').magcorr.mean()
-                 - obj.query('fid == @filterlist[1]').magcorr.mean())
-        label += '\nAverage color %s = %.2f' % (colorname, color)
-    return label
-
-
-def vis_photometry(obj):
-    """Plot the unphased, uncorrected photometry.
-
-    Parameters
-    ----------
-    obj: pd.DataFrame
-        The dataframe of all observations of a given object.
-
-    Returns
-    -------
-    plt.figure
-    """
-    fig = plt.figure(figsize=(8, 6))
-    for f in obj.fid.unique():
-        o = obj.query('fid == @f')
-        plt.errorbar(o.jd - obj.jd.iloc[0], o.mag, yerr=o.sigmamag, color=filtercolors[f],
-                     marker='.', linestyle='')
-    plt.xticks(rotation=90)
-    plt.xlabel('delta JD', fontsize='x-large')
-    plt.ylabel('Mag', fontsize='x-large')
-    plt.title(obj.objId.unique()[0])
-    plt.grid(True, alpha=0.3)
-    label = _make_figurelabel(obj)
-    plt.figtext(0.15, 0.8, label)
-    return fig
-
-
-def vis_corr_photometry(obj):
-    """Plot the unphased, corrected photometry.
-
-    Parameters
-    ----------
-    obj: pd.DataFrame
-        The dataframe of all observations of a given object.
-
-    Returns
-    -------
-    plt.figure
-    """
-    # Look at photometry after subtracting expected magnitude
-    # (i.e. subtract an approximate phase curve, but the ZTF predicted values do have errors sometimes)
-    fig = plt.figure(figsize=(8, 6))
-    for f in obj.fid.unique():
-        o = obj.query('fid == @f')
-        plt.errorbar(o.jd - obj.jd.iloc[0], o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
-                     marker='.', linestyle='')
-    plt.xticks(rotation=90)
-    plt.xlabel('delta JD', fontsize='x-large')
-    plt.ylabel('MagCorr (magpsf - ssmagnr)', fontsize='x-large')
-    plt.title(obj.objId.unique()[0])
-    plt.grid(True, alpha=0.3)
-    label = _make_figurelabel(obj)
-    plt.figtext(0.15, 0.8, label)
-    return fig
-
-
-def fit_model(obj, Nterms_base=2, Nterms_band=1):
-    """Fit the lightcurve data using periodic.LombScargleMultiband.
-
-    Parameters
-    ----------
-    obj: pd.DataFrame
-        The dataframe of all observations of a given object.
-    Nterms_base: int, opt
-        Number of terms for the base LS fit. Default 2.
-    Nterms_band: int, opt
-        Number of terms to allow between bandpasses. Default 1.
-
-    Returns
-    -------
-    periodic.LombScargleMultiBand, float, list of floats
-        The gatspy LS model fit, best fit period (days), and list of best fit periods (in days).
-    """
-    # Let's try to fit these values with the gatspy multiband fitter
-    model = periodic.LombScargleMultiband(fit_period=True,
-                                          Nterms_base=Nterms_base,
-                                          Nterms_band=Nterms_band)
-    big_period = np.min([max_period, (obj.jd.max() - obj.jd.min())])
-    model.optimizer.period_range = (min_period, big_period)
-    model.optimizer.first_pass_coverage = 200
-    model.fit(obj.jd, obj.magcorr, obj.sigmamag, obj.fid)
-    top_periods = model.find_best_periods()
-    return model, model.best_period, top_periods
-
-
-def _print_top_periods(top_periods, model, outfile=None):
-    if outfile is None:
-        print('Top Periods (and doubles):')
-        print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
-              ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in top_periods if p > 1]))
-        print('Best fit period: %.3f hours' % (model.best_period * 24))
-        print()
-    else:
-        print('Top Periods (and doubles):', file=outfile)
-        print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in top_periods if p < 1]),
-              ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in top_periods if p > 1]), file=outfile)
-        print('Best fit period: %.3f hours' % (model.best_period * 24), file=outfile)
-        print(file=outfile)
-
-
-def make_auto_periodogram(model, top_periods=None):
-    """Plot the periodogram for the model (after fit).
-
-    Parameters
-    ----------
-    model: periodic.LombScargleMultiBand model
-        Gatspy model, already fit.
-    top_periods: list of floats, opt
-        model.find_best_periods result (already calculated, but if None then will recalculate).
-
-    Returns
-    -------
-    periods, power, plt.figure
-        Periods and power from periodogram calculation, and figure.
-    """
-    # Look at the periodogram
-    periods, power = model.periodogram_auto(oversampling=100, nyquist_factor=5)
-    fig = plt.figure(figsize=(16, 6))
-    plt.subplot(1, 2, 1)
-    plt.plot(periods * 24, power)
-    if top_periods is None:
-        top_periods = model.find_best_periods()
-    for p in top_periods:
-        plt.axvline(p * 24, color='k', linestyle=':')
-    plt.xlabel('Period (hours)')
-    plt.ylabel('Power')
-    #plt.xlim(0, 3)
-    plt.subplot(1, 2, 2)
-    plt.plot(periods * 24, power)
-    for p in top_periods:
-        plt.axvline(p*24, color='k', linestyle=':')
-    plt.xlabel('Period (hours)')
-    plt.ylabel('Power')
-    #plt.xlim(2, 12)
-    return periods, power, fig
-
-
-def make_linear_periodogram(model, top_periods=None):
-    """Plot the periodogram for the model (after fit).
-
-    Parameters
-    ----------
-    model: periodic.LombScargleMultiBand model
-        Gatspy model, already fit.
-    top_periods: list of floats, opt
-        model.find_best_periods result (already calculated, but if None then will recalculate).
-
-    Returns
-    -------
-    periods, scores, plt.figure
-        Periods and scores from periodogram calculation, and figure.
-    """
-    # Look at the periodogram
-    periods = np.linspace(min_period, max_period, 100000)
-    with warnings.catch_warnings():
-        warnings.simplefilter("ignore")
-        scores = model.score(periods)
-
-    fig = plt.figure(figsize=(16, 6))
-    plt.subplot(1, 2, 1)
-    plt.plot(periods * 24, scores)
-    if top_periods is None:
-        top_periods = model.find_best_periods()
-    for p in top_periods:
-        plt.axvline(p * 24, color='k', linestyle=':')
-    plt.xlabel('Period (hours)')
-    plt.ylabel('Power')
-    #plt.xlim(0, 3)
-    plt.subplot(1, 2, 2)
-    plt.plot(periods * 24, scores)
-    for p in top_periods:
-        plt.axvline(p*24, color='k', linestyle=':')
-    plt.xlabel('Period (hours)')
-    plt.ylabel('Power')
-    #plt.xlim(2, 12)
-    return periods, scores, fig
-
-
-def _make_predictions(tfit, period, model):
-    """Generate predicted magnitudes at the times of the observations.
-
-    Parameters
-    ----------
-    times: np.ndarray
-        The times to create predictions for.
-    period: float
-        Period to use for the predictions.
-    model: gatspy model
-        Model to use for the predictions (periodic.LombScargleMultiBand, etc.).
-
-    Returns
-    -------
-    np.array, np.array, np.array
-        Time of the observations, Magnitude of the predicted observations in the first filter (g),
-        and Magnitude of the predicted observations in the second filter (r)."""
-    # Generate predicted data, using one of the periods.
-    filts = np.ones(len(tfit))
-    pred = model.predict(tfit, filts=filts, period=period)
-    pred2 = model.predict(tfit, filts=filts+1, period=period)
-    return pred, pred2
-
-
-def plot_unphased(obj, period, model):
-    """Plot the unphased corrected photometry and model predictions.
-
-    Parameters
-    ----------
-    obj: pd.DataFrame
-        Dataframe containing the observations of the object.
-    period: float
-        Period to use for the predictions.
-    model: gatspy model
-        Model to use for the predictions (periodic.LombScargleMultiBand, etc.).
-
-    Returns
-    -------
-    plt.figure
-    """
-    fig = plt.figure(figsize=(10, 8))
-    times = np.arange(obj.jd.min(), obj.jd.max() + 0.01, 0.01)
-    pred, pred2 = _make_predictions(times, period, model)
-    plt.plot(times, pred, color=filtercolors[1], linestyle=':', alpha=0.2)
-    plt.plot(times, pred2, color=filtercolors[2], linestyle=':', alpha=0.2)
-    for f in obj.fid.unique():
-        o = obj.query('fid == @f')
-        plt.errorbar(o.jd, o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
-                     marker='.', linestyle='')
-    label = _make_figurelabel(obj)
-    objgr = np.mean(pred2 - pred)
-    label += ' (%.2f)' % objgr
-    label += '\nPeriod %.2f hours' % (period * 24)
-    plt.figtext(0.15, 0.8, label)
-    plt.xlabel('JD', fontsize='x-large')
-    plt.ylabel('MagCorr', fontsize='x-large')
-    plt.title(obj.objId.unique()[0])
-    return fig
 
 
 def phase_times(times, period, offset=0):
@@ -279,33 +26,272 @@ def phase_times(times, period, offset=0):
     return phased
 
 
-def plot_phased(obj, period, model):
-    # Phased
-    """
-    tfit = np.arange(0, period, 0.002)
-    filts = np.ones(len(tfit))
-    pred = model.predict(tfit, filts=filts, period=period)
-    pred2 = model.predict(tfit, filts=filts+1, period=period)
-    """
-    times = np.arange(0, period, 0.0001)
-    pred, pred2 = _make_predictions(times, period, model)
-    phase_t = phase_times(times, period)
-    fig = plt.figure(figsize=(10, 8))
-    plt.plot(phase_t, pred, color=filtercolors[1], 
-             linestyle=':')
-    plt.plot(phase_t, pred2, color=filtercolors[2], 
-             linestyle=':')
-    for f in obj.fid.unique():
-        o = obj.query('fid == @f')
-        plt.errorbar(phase_times(o.jd, period), o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
-                     marker='.', markersize=10, linestyle='')
-    label = _make_figurelabel(obj)
-    objgr = np.mean(pred2 - pred)
-    label += ' (%.2f fit g-r)' % objgr
-    label += '\nPeriod %.2f hours' % (period * 24)
-    plt.figtext(0.15, 0.8, label)
-    plt.xlabel('Lightcurve Phase', fontsize='x-large')
-    plt.ylabel('MagCorr', fontsize='x-large')
-    plt.title(obj.objId.unique()[0])
-    plt.grid(True, alpha=0.3)
-    return fig, objgr
+class LCObject():
+    def __init__(self, lcobs, min_period=1.0/24.0, max_period=60.0/24.0, nsigma=3):
+        self.min_period = min_period
+        self.max_period = max_period
+        self.lcobs = lcobs
+        self.outlier_rejection(nsigma=nsigma)
+        self.name = self.lcobs.objId.unique()[0]
+        self.filterlist = self.lcobs.fid.unique()
+        self.nobs = len(self.lcobs)
+        self.nnights = len(self.lcobs.night.unique())
+
+    def outlier_rejection(self, nsigma=3):
+        # Calculate RMS.
+        # Just calculate RMS across both bands, because most of color-variation
+        # already lost in magcorr correction.
+        rms = np.std(self.lcobs.magcorr)
+        self.lcobs = self.lcobs.query('abs(magcorr) < @nsigma*@rms')
+
+    def __call__(self, outfile=None):
+        figs = {}
+        figs['corrphot'] = self.vis_corr_photometry()
+        self.fit_model()
+        self.calc_chisq()
+        self.print_top_periods(outfile=outfile)
+        if outfile is None:
+            print('chi2DOF', self.chis2dof)
+        else:
+            print(self.chis2dof, file=outfile)
+        figs['periodogram'] = self.make_linear_periodogram()
+        figs['phased'] = self.plot_phased()
+        return figs
+
+    def _make_figurelabel(self):
+        label = 'Nobs = %d, Nnights = %d' % (self.nobs, self.nnights)
+        return label
+
+    def vis_photometry(self):
+        """Plot the unphased, uncorrected photometry.
+
+        Returns
+        -------
+        plt.figure
+        """
+        fig = plt.figure(figsize=(8, 6))
+        for f in self.filterlist:
+            o = self.lcobs.query('fid == @f')
+            plt.errorbar(o.jd - self.lcobs.jd.iloc[0], o.mag, yerr=o.sigmamag, color=filtercolors[f],
+                         marker='.', linestyle='')
+        plt.xticks(rotation=90)
+        plt.xlabel('delta JD', fontsize='x-large')
+        plt.ylabel('Mag', fontsize='x-large')
+        plt.title(self.name)
+        plt.grid(True, alpha=0.3)
+        label = self._make_figurelabel()
+        plt.figtext(0.15, 0.8, label)
+        return fig
+
+    def vis_corr_photometry(self):
+        """Plot the unphased, corrected photometry.
+
+        Returns
+        -------
+        plt.figure
+        """
+        # Look at photometry after subtracting expected magnitude
+        # (i.e. subtract an approximate phase curve, but the ZTF predicted values do have errors sometimes)
+        fig = plt.figure(figsize=(8, 6))
+        for f in self.filterlist:
+            o = self.lcobs.query('fid == @f')
+            plt.errorbar(o.jd - self.lcobs.jd.iloc[0], o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
+                         marker='.', linestyle='')
+        plt.xticks(rotation=90)
+        plt.xlabel('delta JD', fontsize='x-large')
+        plt.ylabel('MagCorr (magpsf - ssmagnr)', fontsize='x-large')
+        plt.title(self.name)
+        plt.grid(True, alpha=0.3)
+        label = self._make_figurelabel()
+        plt.figtext(0.15, 0.8, label)
+        return fig
+
+    def fit_model(self, Nterms_base=2, Nterms_band=1):
+        """Fit the lightcurve data using periodic.LombScargleMultiband.
+
+        Parameters
+        ----------
+        Nterms_base: int, opt
+            Number of terms for the base LS fit. Default 2.
+        Nterms_band: int, opt
+            Number of terms to allow between bandpasses. Default 1.
+
+        Returns
+        -------
+        periodic.LombScargleMultiBand, float, list of floats
+            The gatspy LS model fit, best fit period (days), and list of best fit periods (in days).
+        """
+        # Let's try to fit these values with the gatspy multiband fitter
+        self.model = periodic.LombScargleMultiband(fit_period=True,
+                                                   Nterms_base=Nterms_base,
+                                                   Nterms_band=Nterms_band)
+        big_period = np.min([self.max_period, (self.lcobs.jd.max() - self.lcobs.jd.min())])
+        self.model.optimizer.period_range = (self.min_period, big_period)
+        self.model.optimizer.first_pass_coverage = 200
+        self.model.fit(self.lcobs.jd, self.lcobs.magcorr, self.lcobs.sigmamag, self.lcobs.fid)
+        self.top_periods = self.model.find_best_periods()
+        self.best_period = self.model.best_period
+
+    def print_top_periods(self, outfile=None):
+        if outfile is None:
+            print('Top Periods (and doubles):')
+            print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in self.top_periods if p < 1]),
+                  ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in self.top_periods if p > 1]))
+            print('Best fit period: %.3f hours' % (self.best_period * 24))
+            print()
+        else:
+            print('Top Periods (and doubles):', file=outfile)
+            print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in self.top_periods if p < 1]),
+                  ' '.join(['%.3f (%.3f) days\n' % (p, p*2) for p in self.top_periods if p > 1]),
+                  file=outfile)
+            print('Best fit period: %.3f hours' % (self.best_period * 24), file=outfile)
+            print(file=outfile)
+
+    def calc_chisq(self, period=None):
+        if period is None:
+            period = self.best_period
+        z = None
+        for f in self.filterlist:
+            o = self.lcobs.query('fid == @f')
+            predictions = self.make_predictions(o.jd.values, period)
+            if z is None:
+                z = (o.magcorr - predictions[f]) / o.sigmamag
+            else:
+                z = z.append((o.magcorr - predictions[f]) / o.sigmamag)
+        self.chis2 = np.sum(z ** 2)
+        self.chis2dof = self.chis2 / (self.nobs - 1)
+
+    def make_auto_periodogram(self):
+        """Plot the periodogram for the model (after fit).
+
+        Returns
+        -------
+        periods, power, plt.figure
+            Periods and power from periodogram calculation, and figure.
+        """
+        # Look at the periodogram
+        periods, power = self.model.periodogram_auto(oversampling=100, nyquist_factor=5)
+        fig = plt.figure(figsize=(16, 6))
+        plt.subplot(1, 2, 1)
+        plt.plot(periods * 24, power)
+        for p in self.top_periods:
+            plt.axvline(p * 24, color='k', linestyle=':')
+        plt.xlabel('Period (hours)')
+        plt.ylabel('Power')
+        plt.subplot(1, 2, 2)
+        plt.plot(periods * 24, power)
+        for p in self.top_periods:
+            plt.axvline(p*24, color='k', linestyle=':')
+        plt.xlabel('Period (hours)')
+        plt.ylabel('Power')
+        plt.xlim(0, 10)
+        self.auto_periods = periods
+        self.auto_power = power
+        return fig
+
+    def make_linear_periodogram(self):
+        """Plot the periodogram for the model (after fit).
+
+        Returns
+        -------
+        periods, scores, plt.figure
+            Periods and scores from periodogram calculation, and figure.
+        """
+        # Look at the periodogram
+        big_period = np.min([self.max_period, (self.lcobs.jd.max() - self.lcobs.jd.min())])
+        periods = np.linspace(self.min_period, big_period, 100000)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            scores = self.model.score(periods)
+        fig = plt.figure(figsize=(16, 6))
+        plt.subplot(1, 2, 1)
+        plt.plot(periods * 24, scores)
+        for p in self.top_periods:
+            plt.axvline(p * 24, color='k', linestyle=':')
+        plt.xlabel('Period (hours)')
+        plt.ylabel('Power')
+        plt.subplot(1, 2, 2)
+        plt.plot(periods * 24, scores)
+        for p in self.top_periods:
+            plt.axvline(p*24, color='k', linestyle=':')
+        plt.xlabel('Period (hours)')
+        plt.ylabel('Power')
+        plt.xlim(0, 10)
+        self.lin_periods = periods
+        self.lin_scores = scores
+        return fig
+
+    def make_predictions(self, tfit, period):
+        """Generate predicted magnitudes at the times of the observations.
+
+        Parameters
+        ----------
+        times: np.ndarray
+            The times to create predictions for.
+        period: float
+            Period to use for the predictions.
+
+        Returns
+        -------
+        np.array, np.array, np.array
+            Time of the observations, Magnitude of the predicted observations in the first filter (g),
+            and Magnitude of the predicted observations in the second filter (r)."""
+        # Generate predicted data, using one of the periods.
+        predictions = {}
+        for f in self.filterlist:
+            filts = np.zeros(len(tfit)) + f
+            predictions[f] = self.model.predict(tfit, filts=filts, period=period)
+        return predictions
+
+    def plot_unphased(self, period=None):
+        """Plot the unphased corrected photometry and model predictions.
+
+        Parameters
+        ----------
+        period: float
+            Period to use for the predictions.
+
+        Returns
+        -------
+        plt.figure
+        """
+        if period is None:
+            period = self.best_period
+        fig = plt.figure(figsize=(10, 8))
+        times = np.arange(self.lcobs.jd.min(), self.lcobs.jd.max() + 0.01, 0.01)
+        predictions = self.make_predictions(times, period)
+        for f in self.filterlist:
+            plt.plot(times, predictions[f], color=filtercolors[f], linestyle=':', alpha=0.2)
+            o = self.lcobs.query('fid == @f')
+            plt.errorbar(o.jd, o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
+                         marker='.', linestyle='')
+        label = self._make_figurelabel()
+        label += '\nPeriod %.2f hours' % (period * 24)
+        plt.figtext(0.15, 0.8, label)
+        plt.xlabel('JD', fontsize='x-large')
+        plt.ylabel('MagCorr', fontsize='x-large')
+        plt.title(self.name)
+        return fig
+
+    def plot_phased(self, period=None):
+        # Phased
+        if period is None:
+            period = self.best_period
+        times = np.arange(0, period, 0.0001)
+        predictions = self.make_predictions(times, period)
+        phase_t = phase_times(times, period)
+        fig = plt.figure(figsize=(10, 8))
+        for f in self.filterlist:
+            plt.plot(phase_t, predictions[f], color=filtercolors[f],
+                     linestyle=':')
+            o = self.lcobs.query('fid == @f')
+            plt.errorbar(phase_times(o.jd, period), o.magcorr, yerr=o.sigmamag, color=filtercolors[f],
+                         marker='.', markersize=10, linestyle='')
+        label = self._make_figurelabel()
+        label += '\nPeriod %.2f hours' % (period * 24)
+        plt.figtext(0.15, 0.8, label)
+        plt.xlabel('Lightcurve Phase', fontsize='x-large')
+        plt.ylabel('MagCorr', fontsize='x-large')
+        plt.title(self.name)
+        plt.grid(True, alpha=0.3)
+        return fig
