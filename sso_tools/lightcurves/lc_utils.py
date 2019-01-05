@@ -27,24 +27,30 @@ def phase_times(times, period, offset=0):
 
 
 class LCObject():
-    def __init__(self, lcobs, min_period=1.0/24.0, max_period=60.0/24.0, nsigma=3):
+    def __init__(self, min_period=1.0/24.0, max_period=60.0/24.0, 
+                 nsigma=3, Nterms_base=2, Nterms_band=0):
+        """
+        Parameters
+        ----------
+        min_period: float, opt
+            Minimum period to fit for, in days.
+        max_period: float, opt
+            Maximum period to fit for, in days.
+        nsigma: int, opt
+            Number of standard deviations to allow around the mean, before rejecting input data points.
+        Nterms_base: int, opt
+            Number of terms for the base LS fit. Default 2.
+        Nterms_band: int, opt
+            Number of terms to allow between bandpasses. Default 1.  
+        """
         self.min_period = min_period
         self.max_period = max_period
-        self.lcobs = lcobs
-        self.outlier_rejection(nsigma=nsigma)
-        self.name = self.lcobs.objId.unique()[0]
-        self.filterlist = self.lcobs.fid.unique()
-        self.nobs = len(self.lcobs)
-        self.nnights = len(self.lcobs.night.unique())
+        self.nsigma = nsigma
+        self.Nterms_base = Nterms_base
+        self.Nterms_band = Nterms_band
 
-    def outlier_rejection(self, nsigma=3):
-        # Calculate RMS.
-        # Just calculate RMS across both bands, because most of color-variation
-        # already lost in magcorr correction.
-        rms = np.std(self.lcobs.magcorr)
-        self.lcobs = self.lcobs.query('abs(magcorr) < @nsigma*@rms')
-
-    def __call__(self, outfile=None):
+    def __call__(self, lcobs, outfile=None):
+        self.setObs(lcobs)
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         self.fit_model()
@@ -57,6 +63,22 @@ class LCObject():
         figs['periodogram'] = self.make_linear_periodogram()
         figs['phased'] = self.plot_phased()
         return figs
+
+    def setObs(self, lcobs):
+        self.lcobs = lcobs
+        self.outlier_rejection()
+        self.name = self.lcobs.objId.unique()[0]
+        self.filterlist = self.lcobs.fid.unique()
+        self.nobs = len(self.lcobs)
+        self.nnights = len(self.lcobs.night.unique())
+
+    def outlier_rejection(self):
+        # Calculate RMS.
+        # Just calculate RMS across both bands, because most of color-variation
+        # already lost in magcorr correction.
+        rms = np.std(self.lcobs.magcorr)
+        nsigma = self.nsigma
+        self.lcobs = self.lcobs.query('abs(magcorr) < @nsigma*@rms')
 
     def _make_figurelabel(self):
         label = 'Nobs = %d, Nnights = %d' % (self.nobs, self.nnights)
@@ -106,25 +128,13 @@ class LCObject():
         plt.figtext(0.15, 0.8, label)
         return fig
 
-    def fit_model(self, Nterms_base=2, Nterms_band=1):
+    def fit_model(self):
         """Fit the lightcurve data using periodic.LombScargleMultiband.
-
-        Parameters
-        ----------
-        Nterms_base: int, opt
-            Number of terms for the base LS fit. Default 2.
-        Nterms_band: int, opt
-            Number of terms to allow between bandpasses. Default 1.
-
-        Returns
-        -------
-        periodic.LombScargleMultiBand, float, list of floats
-            The gatspy LS model fit, best fit period (days), and list of best fit periods (in days).
         """
         # Let's try to fit these values with the gatspy multiband fitter
         self.model = periodic.LombScargleMultiband(fit_period=True,
-                                                   Nterms_base=Nterms_base,
-                                                   Nterms_band=Nterms_band)
+                                                   Nterms_base=self.Nterms_base,
+                                                   Nterms_band=self.Nterms_band)
         big_period = np.min([self.max_period, (self.lcobs.jd.max() - self.lcobs.jd.min())])
         self.model.optimizer.period_range = (self.min_period, big_period)
         self.model.optimizer.first_pass_coverage = 200
