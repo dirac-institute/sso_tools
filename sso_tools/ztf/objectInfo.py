@@ -120,6 +120,7 @@ class AsteroidObj():
         self.setOrbit()
         self.add_ztf_magcorr()
         self.add_oorb_magcorr()
+        return
 
     def getObs(self, all_sso, ztfname, minJD=None, maxJD=None, dist_cutoff=10):
         """Pull out the observations of a given object, sets self.obs
@@ -171,7 +172,7 @@ class AsteroidObj():
         """Add the corrected (for distance and phase angle) magnitudes using OO predicted values.
         """
         # Add the 'corrected' magnitude values using OOrb predicted values.
-        ephs = self.pyOrb.generateEphemerides(self.obs.mjd, timeScale='UTC', obscode='I41')
+        ephs = self.pyOrb.generateEphemerides(self.obs.mjd.values, timeScale='UTC', obscode='I41')
         self.ephs = ephs
         self.obs = self.obs.assign(magOO=ephs[0]['magV'],
                                    phaseangle=ephs[0]['phase'],
@@ -269,11 +270,13 @@ class AsteroidObj():
                 times = o.jd - t0
             plt.errorbar(times, o.magap, yerr=o.sigmagap, color=filtercolors[f],
                          marker='.', linestyle='')
+        """
         if fulldates:
             times = self.obs.jd
         else:
             times = self.obs.jd - t0
-        #plt.plot(times, self.obs.ssmagnr, 'c-')
+        plt.plot(times, self.obs.ssmagnr, 'c-')
+        """
         if self.ephMags is not None:
             t = self.ephMags['t']
             if not fulldates:
@@ -297,11 +300,13 @@ class AsteroidObj():
                 times = o.jd - t0
             plt.errorbar(times, o.magpsf, yerr=o.sigmapsf, color=filtercolors[f],
                          marker='.', linestyle='')
+        """
         if fulldates:
             times = self.obs.jd
         else:
             times = self.obs.jd - t0
-        #plt.plot(times, self.obs.ssmagnr, 'c-')
+        plt.plot(times, self.obs.ssmagnr, 'c-')
+        """
         if self.ephMags is not None:
             t = self.ephMags['t']
             if not fulldates:
