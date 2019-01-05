@@ -49,8 +49,10 @@ class LCObject():
         self.Nterms_base = Nterms_base
         self.Nterms_band = Nterms_band
 
-    def __call__(self, lcobs, outfile=None):
+    def __call__(self, lcobs, photoffsets=None, outfile=None):
         self.setObs(lcobs)
+        self.photoffsets = photoffsets
+        
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         self.fit_model()
