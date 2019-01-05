@@ -206,7 +206,7 @@ def read_astorb(filename='astorb.dat'):
     astorb['numberId'] = astorb['numberId'].fillna(-999).astype(int)
     astorb['Desig'] = np.empty(len(astorb), str)
     astorb['objId'] = np.empty(len(astorb), str)
-    astorb = astorb.apply(_parse_astorb_names_and_epochs, axis=1)
+    #astorb = astorb.apply(_parse_astorb_names_and_epochs, axis=1)
     return astorb
 
 
@@ -288,6 +288,6 @@ def read_lcdb(filename='LC_SUM_PUB.TXT'):
     tmp = lcdata.widefield.values
     tmp = np.where(tmp == 'Y', 1, 0)
     lcdata.widefield = tmp
-    lcdata['objId'] = np.empty(len(lcdata), str)
-    lcdata = lcdata.apply(_parse_lcdb_names, axis=1)
+    #lcdata['objId'] = np.empty(len(lcdata), str)
+    #lcdata = lcdata.apply(_parse_lcdb_names, axis=1)
     return lcdata
