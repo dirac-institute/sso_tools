@@ -277,6 +277,11 @@ def read_lcdb(filename='LC_SUM_PUB.TXT'):
                 (147, 148), (149, 153), (154, 158), (159, 161),(162, 167), (168, 171),
                 (172, 175), (176, 179), (180, 182), (183, 184)]
     lcdata = pd.read_fwf(filename, index_col=False, skiprows=5, names=names, colspecs=colspecs)
+    objId = lcdata.query('numberId == numberId')['numberId'].astype('int').astype('str')
+    objId2 = lcdata.query('numberId != numberId and Desig == Desig')['Desig']
+    objId3 = lcdata.query('numberId != numberId and Desig != Desig')['Name']
+    t = pd.concat([objId, objId2, objId3])
+    lcdata = lcdata.merge(t.to_frame(name='objId'), left_index=True, right_index=True)
     lcdata['Frequency'] = 1.0/lcdata.period
     # Map flags to ints.
     tmp = lcdata.new.values
@@ -288,6 +293,4 @@ def read_lcdb(filename='LC_SUM_PUB.TXT'):
     tmp = lcdata.widefield.values
     tmp = np.where(tmp == 'Y', 1, 0)
     lcdata.widefield = tmp
-    #lcdata['objId'] = np.empty(len(lcdata), str)
-    #lcdata = lcdata.apply(_parse_lcdb_names, axis=1)
     return lcdata
