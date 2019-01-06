@@ -55,7 +55,7 @@ def fit_all_lightcurves(logfile, datafile, objfile):
     #  the subset of observations of that object in ZTF alert format (obj)
     #  and a minimal set of these columns, renamed, for the lc_utils code (lc_df)
 
-    header = 'Name,Nobs,Nobs_g,Nobs_r,Nobs_i,Nights,g-r,Period,chis2dof'
+    header = 'Name,Nobs,Nobs_g,Nobs_r,Nobs_i,Nights,g-r,Period,Amp,chis2dof'
     data.write('%s\n' % header)
 
     for name in objnames:
@@ -94,9 +94,8 @@ def fit_all_lightcurves(logfile, datafile, objfile):
                 grcolor = lc.photoffsets[filterdict_inv['g']] - lc.photoffsets[filterdict_inv['r']]
             else:
                 grcolor = -999
-            datstr = '%s,%d,%d,%d,%d,%d,%f,%f,%f' % (name, nobs, nobs_g, nobs_r, nobs_i, nnights, 
-                                                     grcolor,
-                                                     lc.best_period*24.0, lc.chis2dof)
+            datstr = '%s,%d,%d,%d,%d,%d,%f,%f,%f,%f' % (name, nobs, nobs_g, nobs_r, nobs_i, nnights,
+                                                        grcolor, lc.best_period*24.0, lc.amp, lc.chis2dof)
             data.write("%s\n" % datstr)
             data.flush()
         except:

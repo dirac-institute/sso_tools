@@ -52,7 +52,7 @@ class LCObject():
     def __call__(self, lcobs, photoffsets=None, outfile=None):
         self.setObs(lcobs)
         self.photoffsets = photoffsets
-        
+
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         self.fit_model()
@@ -143,6 +143,12 @@ class LCObject():
         self.model.fit(self.lcobs.jd, self.lcobs.magcorr, self.lcobs.sigmamag, self.lcobs.fid)
         self.top_periods = self.model.find_best_periods()
         self.best_period = self.model.best_period
+        times = np.arange(0, self.best_period, 0.0001)
+        predictions = self.make_predictions(times, self.best_period)
+        self.amp = 0
+        for k in predictions:
+            amp = predictions[k].max() - predictions[k].min()
+            self.amp = max(amp, self.amp)
 
     def print_top_periods(self, outfile=None):
         if outfile is None:
