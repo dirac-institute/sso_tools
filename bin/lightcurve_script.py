@@ -8,6 +8,8 @@ from sso_tools import lightcurves as lcu
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
 filterdict_inv = {'g': 1, 'r': 2, 'i': 3}
 
+min_obs = 50
+
 def identify_candidates():
 
     output_file = 'ztf_lc_log.txt'
@@ -20,7 +22,7 @@ def identify_candidates():
     print("Number of different objects %d" % len(all_sso.groupby('ssnamenr')), file=log)
     print("Number of nights included %d" % len(all_sso.groupby('nid')), file=log)
 
-    objnames = ztf.identify_candidates(all_sso, min_obs=40, dist_cutoff=10)
+    objnames = ztf.identify_candidates(all_sso, min_obs=min_obs, dist_cutoff=10)
     print("Found %d objects with more than 40 observations" % len(objnames), file=log)
 
     # Save objectnames to a file.
