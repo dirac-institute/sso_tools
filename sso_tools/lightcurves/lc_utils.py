@@ -123,7 +123,7 @@ class LCObject():
                          marker='.', linestyle='')
         plt.xticks(rotation=90)
         plt.xlabel('delta JD', fontsize='x-large')
-        plt.ylabel('MagCorr (magpsf - ssmagnr)', fontsize='x-large')
+        plt.ylabel('MagCorr (mag_obs - pred)', fontsize='x-large')
         plt.title(self.name)
         plt.grid(True, alpha=0.3)
         label = self._make_figurelabel()
