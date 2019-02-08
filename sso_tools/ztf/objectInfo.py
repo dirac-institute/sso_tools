@@ -4,11 +4,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from astroquery.jplsbdb import SBDB
+from astroquery.mpc import MPC
 import lsst.sims.movingObjects as mo
 from .ztfdb import ztfname_to_designation
 from ..catalogs import read_sdss_moc
 
-__all__ = ['queryJPL', 'sdss_colors', 'AsteroidObj']
+__all__ = ['queryJPL', 'queryMPC', 'sdss_colors', 'AsteroidObj']
 
 # ZTF filters / integer id's
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
@@ -65,6 +66,47 @@ def queryJPL(designation):
                             'diam': diam,
                             'albedo': albedo,
                             'rot': rot
+                            })
+    return orbit
+
+
+def queryMPC(designation):
+    """Query JPL Horizons for information about object 'designation'.
+
+    Parameters
+    ----------
+    designation: str
+        A name for the object that the MPC will understand.
+        This can be a number, proper name, or the packed designation.
+
+    Returns
+    -------
+    pd.Series
+        Series containing orbit and select physical information.
+    """
+    try:
+        number = int(designation)
+        mpc = MPC.query_object('asteroid', number=number)
+    except ValueError:
+        mpc = MPC.query_object('asteroid', name=designation)
+    mpc = mpc[0]
+    orbit = pd.Series(data={'des': designation,
+                            'fullname': mpc['name'],
+                            'FORMAT': 'KEP',
+                            'a': float(mpc['semimajor_axis']),
+                            'q': float(mpc['perihelion_distance']),
+                            'e': float(mpc['eccentricity']),
+                            'inc': float(mpc['inclination']),
+                            'Omega': float(mpc['ascending_node']),
+                            'argPeri': float(mpc['argument_of_perihelion']),
+                            'tPeri': float(mpc['perihelion_date_jd']) - 2400000.5,  # to MJD
+                            'meanAnomaly': float(mpc['mean_anomaly']),
+                            'epoch': float(mpc['epoch_jd']) - 2400000.5,  # to MJD
+                            'H': float(mpc['absolute_magnitude']),
+                            'g': float(mpc['phase_slope']),
+                            'diam': -999,
+                            'albedo': -999,
+                            'rot': -999
                             })
     return orbit
 
@@ -154,10 +196,13 @@ class AsteroidObj():
         self.nobs = len(self.obs)
         self.nnights = len(self.obs.nid.unique())
 
-    def setOrbit(self):
+    def setOrbit(self, source='SBDB'):
         """Query JPL SBDB for orbit and physical properties, sets up internal orbit/ephemeris objects."""
         desig = ztfname_to_designation(self.name)
-        self.orbit = queryJPL(desig)
+        if source == 'MPC':
+            self.orbit = queryMPC(design)
+        else:
+            self.orbit = queryJPL(desig)
         self.Orb.setOrbits(self.orbit)
         self.pyOrb.setOrbits(self.Orb)
 
