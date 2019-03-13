@@ -103,7 +103,10 @@ def ztfname_to_designation(ztfname):
             i = 4
         desig = ztfname[0:i] + ' ' + ztfname[i:i + 2]
         i += 2
-        val = int(ztfname[i:])
-        if val > 0:
-            desig += str(int(ztfname[i:]))
+        try:
+            val = int(ztfname[i:])
+            if val > 0:
+                desig += str(int(ztfname[i:]))
+        except ValueError:  # comets might be 246P, for example
+            desig += ztfname[i:]
     return desig

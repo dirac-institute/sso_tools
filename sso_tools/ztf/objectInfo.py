@@ -40,6 +40,10 @@ def queryJPL(designation):
         albedo = float(phys['albedo'])
     else:
         albedo = np.NaN
+    if 'H' in phys:
+        H = phys['H']
+    else:
+        H = 999.
     if 'rot_per' in phys:
         rot = phys['rot_per'].to('hr')
     else:
@@ -60,7 +64,7 @@ def queryJPL(designation):
                             'tPeri': orbval['tp'].to('d') - 2400000.5,  # to MJD
                             'meanAnomaly': orbval['ma'].to('deg'),
                             'epoch': sbdb['orbit']['epoch'].to('d') - 2400000.5,  # to MJD
-                            'H': float(sbdb['phys_par']['H']),
+                            'H': H,
                             'g': 0.15,
                             'diam': diam,
                             'albedo': albedo,
