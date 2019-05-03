@@ -101,6 +101,7 @@ class LCObject():
         plt.xticks(rotation=90)
         plt.xlabel('delta JD', fontsize='x-large')
         plt.ylabel('Mag', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         plt.grid(True, alpha=0.3)
         label = self._make_figurelabel()
@@ -124,6 +125,7 @@ class LCObject():
         plt.xticks(rotation=90)
         plt.xlabel('delta JD', fontsize='x-large')
         plt.ylabel('MagCorr (mag_obs - pred)', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         plt.grid(True, alpha=0.3)
         label = self._make_figurelabel()
@@ -288,6 +290,7 @@ class LCObject():
         plt.figtext(0.15, 0.8, label)
         plt.xlabel('JD', fontsize='x-large')
         plt.ylabel('MagCorr', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         return fig
 
@@ -310,6 +313,7 @@ class LCObject():
         plt.figtext(0.15, 0.8, label)
         plt.xlabel('Lightcurve Phase', fontsize='x-large')
         plt.ylabel('MagCorr', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         plt.grid(True, alpha=0.3)
         return fig
