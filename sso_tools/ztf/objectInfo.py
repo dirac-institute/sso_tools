@@ -339,6 +339,7 @@ class AsteroidObj():
         else:
             plt.xlabel('Delta JD', fontsize='x-large')
         plt.ylabel('ApMag', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         plt.subplot(1, 2, 2)
         for f in self.filterlist:
@@ -369,6 +370,7 @@ class AsteroidObj():
         else:
             plt.xlabel('Delta JD', fontsize='x-large')
         plt.ylabel('PSF mag', fontsize='x-large')
+        plt.gca().invert_yaxis()
         plt.title(self.name)
         if len(self.filterlist) > 1:
             f0 = self.filterlist[0]
