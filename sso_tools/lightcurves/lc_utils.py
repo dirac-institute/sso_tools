@@ -27,7 +27,7 @@ def phase_times(times, period, offset=0):
 
 
 class LCObject():
-    def __init__(self, min_period=1.0/24.0, max_period=60.0/24.0, 
+    def __init__(self, min_period=1.0/24.0, max_period=60.0/24.0,
                  nsigma=3, Nterms_base=2, Nterms_band=0):
         """
         Parameters
@@ -41,7 +41,7 @@ class LCObject():
         Nterms_base: int, opt
             Number of terms for the base LS fit. Default 2.
         Nterms_band: int, opt
-            Number of terms to allow between bandpasses. Default 1.  
+            Number of terms to allow between bandpasses. Default 1.
         """
         self.min_period = min_period
         self.max_period = max_period
@@ -80,7 +80,9 @@ class LCObject():
         # already lost in magcorr correction.
         rms = np.std(self.lcobs.magcorr)
         nsigma = self.nsigma
+        self.lcobs_reject = self.lcobs.query('abs(magcorr) >= @nsigma*@rms')
         self.lcobs = self.lcobs.query('abs(magcorr) < @nsigma*@rms')
+        print('Rejected %d observations from %s' % (len(self.lcobs_reject), self.name))
 
     def _make_figurelabel(self):
         label = 'Nobs = %d, Nnights = %d' % (self.nobs, self.nnights)
