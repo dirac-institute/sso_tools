@@ -68,8 +68,8 @@ class LCObject():
 
     def setObs(self, lcobs):
         self.lcobs = lcobs
-        self.outlier_rejection()
         self.name = self.lcobs.objId.unique()[0]
+        self.outlier_rejection()
         self.filterlist = self.lcobs.fid.unique()
         self.nobs = len(self.lcobs)
         self.nnights = len(self.lcobs.night.unique())
