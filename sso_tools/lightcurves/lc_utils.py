@@ -10,6 +10,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from gatspy import periodic
+from scipy.signal import peak_finder
 
 __all__ = ['phase_times', 'LCObject']
 
@@ -41,7 +42,7 @@ class LCObject():
         Nterms_base: int, opt
             Number of terms for the base LS fit. Default 2.
         Nterms_band: int, opt
-            Number of terms to allow between bandpasses. Default 1.
+            Number of terms to allow between bandpasses. Default 0.
         """
         self.min_period = min_period
         self.max_period = max_period
@@ -56,7 +57,6 @@ class LCObject():
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         self.fit_model()
-        self.calc_chisq()
         self.print_top_periods(outfile=outfile)
         if outfile is None:
             print('chi2DOF', self.chis2dof)
@@ -146,13 +146,34 @@ class LCObject():
         self.model.optimizer.first_pass_coverage = 200
         self.model.fit(self.lcobs.jd, self.lcobs.magcorr, self.lcobs.sigmamag, self.lcobs.fid)
         self.top_periods = self.model.find_best_periods()
-        self.best_period = self.model.best_period
-        times = np.arange(0, self.best_period, 0.0001)
+        self.best_period = self.top_periods[0]
+        times = np.arange(0, self.best_period, self.best_period/100)
         predictions = self.make_predictions(times, self.best_period)
+        # Should we probably double this peak?
+        idx = find_peaks(predictions[1])[0]
+        self.npeaks = len(idx)
+        if len(idx) == 1:
+            self.best_period *= 2
+        # Calculate amplitude
         self.amp = 0
         for k in predictions:
             amp = predictions[k].max() - predictions[k].min()
             self.amp = max(amp, self.amp)
+        # Calculate chisq of fit
+        self.calc_chisq()
+        # Calculate updated colors
+        if self.photoffsets is not None:
+            if 1 in self.photoffsets and 2 in self.photoffsets:
+                self.gr = self.photoffsets[1] - self.photoffsets[2]
+                # And check if we can refine this from the lc fit
+                self.gr = self.gr + (predictions[1] - predictions[2])[0]
+            else:
+                self.gr = -999
+            if 3 not in lc.photoffsets:
+                self.ri = -999
+            else:
+                self.ri = self.photoffsets[2] - self.photoffsets[3]
+                self.ri = self.ri + (predictions[2] - predictions[3])[0]
 
     def print_top_periods(self, outfile=None):
         if outfile is None:
@@ -300,7 +321,7 @@ class LCObject():
         # Phased
         if period is None:
             period = self.best_period
-        times = np.arange(0, period, 0.0001)
+        times = np.arange(0, period, period/100)
         predictions = self.make_predictions(times, period)
         phase_t = phase_times(times, period)
         fig = plt.figure(figsize=(10, 8))

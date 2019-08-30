@@ -92,10 +92,6 @@ def fit_all_lightcurves(logfile, datafile, objfile):
             fig.savefig('%s_phased.png' % nameroot, format='png')
             plt.close('all')
 
-            if filterdict_inv['g'] in lc.photoffsets and filterdict_inv['r'] in lc.photoffsets:
-                grcolor = lc.photoffsets[filterdict_inv['g']] - lc.photoffsets[filterdict_inv['r']]
-            else:
-                grcolor = -999
             datstr = '%s,%d,%d,%d,%d,%d,%f,%f,%f,%f' % (name, nobs, nobs_g, nobs_r, nobs_i, nnights,
                                                         grcolor, lc.best_period*24.0, lc.amp, lc.chis2dof)
             data.write("%s\n" % datstr)
