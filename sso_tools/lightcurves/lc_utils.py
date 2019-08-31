@@ -10,7 +10,7 @@ import warnings
 import numpy as np
 import matplotlib.pyplot as plt
 from gatspy import periodic
-from scipy.signal import peak_finder
+from scipy.signal import find_peaks
 
 __all__ = ['phase_times', 'LCObject']
 
