@@ -57,9 +57,9 @@ class LCObject():
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         figs['phased'] = self.plot_phased()
-        figs['autoperiodogram'] = self.make_auto_periodogram()
         if long:
             self.print_top_periods(outfile=outfile)
+            figs['autoperiodogram'] = self.make_auto_periodogram()
             figs['periodogram'] = self.make_linear_periodogram()
         return figs
 
@@ -146,7 +146,7 @@ class LCObject():
         times = np.arange(0, self.best_period, self.best_period/100)
         predictions = self.make_predictions(times, self.best_period)
         # Should we probably double this peak?
-        idx = find_peaks(predictions[1])[0]
+        idx = find_peaks(predictions[self.filterlist[0]])[0]
         self.npeaks = len(idx)
         if len(idx) == 1:
             self.best_period *= 2
