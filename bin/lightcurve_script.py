@@ -57,7 +57,7 @@ def fit_all_lightcurves(logfile, datafile, objfile):
     #  the subset of observations of that object in ZTF alert format (obj)
     #  and a minimal set of these columns, renamed, for the lc_utils code (lc_df)
 
-    header = 'Name,Nobs,Nobs_g,Nobs_r,Nobs_i,Nights,g-r,Period,Amp,chis2dof'
+    header = 'Name,Nobs,Nobs_g,Nobs_r,Nobs_i,Nights,g-r,r-i,FitPeriod,FitAmp,chis2dof'
     data.write('%s\n' % header)
 
     for name in objnames:
@@ -86,14 +86,15 @@ def fit_all_lightcurves(logfile, datafile, objfile):
             import pickle
             with open('%s_pickle' % nameroot, 'wb') as m:
                 pickle.dump(lc, m)
-            fig = figs['periodogram']
-            fig.savefig('%s_linearperiodogram.png' % nameroot, format='png')
+            fig = figs['autoperiodogram']
+            fig.savefig('%s_autoperiodogram.png' % nameroot, format='png')
             fig = figs['phased']
             fig.savefig('%s_phased.png' % nameroot, format='png')
             plt.close('all')
 
             datstr = '%s,%d,%d,%d,%d,%d,%f,%f,%f,%f' % (name, nobs, nobs_g, nobs_r, nobs_i, nnights,
-                                                        grcolor, lc.best_period*24.0, lc.amp, lc.chis2dof)
+                                                        lc.gr, lc.ri, lc.best_period*24.0,
+                                                        lc.amp, lc.chis2dof)
             data.write("%s\n" % datstr)
             data.flush()
         except:

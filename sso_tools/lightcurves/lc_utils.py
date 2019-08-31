@@ -50,20 +50,18 @@ class LCObject():
         self.Nterms_base = Nterms_base
         self.Nterms_band = Nterms_band
 
-    def __call__(self, lcobs, photoffsets=None, outfile=None):
+    def __call__(self, lcobs, photoffsets=None, outfile=None, long=False):
         self.setObs(lcobs)
         self.photoffsets = photoffsets
 
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
-        self.fit_model()
-        self.print_top_periods(outfile=outfile)
-        if outfile is None:
-            print('chi2DOF', self.chis2dof)
-        else:
-            print(self.chis2dof, file=outfile)
-        figs['periodogram'] = self.make_linear_periodogram()
         figs['phased'] = self.plot_phased()
+        figs['autoperiodogram'] = self.make_auto_periodogram()
+        self.fit_model()
+        if long:
+            self.print_top_periods(outfile=outfile)
+            figs['periodogram'] = self.make_linear_periodogram()
         return figs
 
     def setObs(self, lcobs):
@@ -145,8 +143,7 @@ class LCObject():
         self.model.optimizer.period_range = (self.min_period, big_period)
         self.model.optimizer.first_pass_coverage = 200
         self.model.fit(self.lcobs.jd, self.lcobs.magcorr, self.lcobs.sigmamag, self.lcobs.fid)
-        self.top_periods = self.model.find_best_periods()
-        self.best_period = self.top_periods[0]
+        self.best_period = self.model.best_period
         times = np.arange(0, self.best_period, self.best_period/100)
         predictions = self.make_predictions(times, self.best_period)
         # Should we probably double this peak?
@@ -162,20 +159,19 @@ class LCObject():
         # Calculate chisq of fit
         self.calc_chisq()
         # Calculate updated colors
+        self.gr = -999
+        self.ri = -999
         if self.photoffsets is not None:
             if 1 in self.photoffsets and 2 in self.photoffsets:
                 self.gr = self.photoffsets[1] - self.photoffsets[2]
                 # And check if we can refine this from the lc fit
                 self.gr = self.gr + (predictions[1] - predictions[2])[0]
-            else:
-                self.gr = -999
-            if 3 not in lc.photoffsets:
-                self.ri = -999
-            else:
+            if 3 in self.photoffsets and 2 in self.photoffsets:
                 self.ri = self.photoffsets[2] - self.photoffsets[3]
                 self.ri = self.ri + (predictions[2] - predictions[3])[0]
 
     def print_top_periods(self, outfile=None):
+        self.top_periods = self.model.find_best_periods()
         if outfile is None:
             print('Top Periods (and doubles):')
             print(' '.join(['%.3f (%.3f) hours\n' % (p*24.0, p*24.0*2) for p in self.top_periods if p < 1]),
