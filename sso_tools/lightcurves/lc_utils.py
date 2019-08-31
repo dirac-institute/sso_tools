@@ -53,12 +53,11 @@ class LCObject():
     def __call__(self, lcobs, photoffsets=None, outfile=None, long=False):
         self.setObs(lcobs)
         self.photoffsets = photoffsets
-
+        self.fit_model()
         figs = {}
         figs['corrphot'] = self.vis_corr_photometry()
         figs['phased'] = self.plot_phased()
         figs['autoperiodogram'] = self.make_auto_periodogram()
-        self.fit_model()
         if long:
             self.print_top_periods(outfile=outfile)
             figs['periodogram'] = self.make_linear_periodogram()
