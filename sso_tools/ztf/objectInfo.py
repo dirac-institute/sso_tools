@@ -203,8 +203,10 @@ class AsteroidObj():
     def setOrbit(self, source='SBDB'):
         """Query JPL SBDB for orbit and physical properties, sets up internal orbit/ephemeris objects."""
         desig = ztfname_to_designation(self.name)
-        if source == 'MPC':
-            self.orbit = queryMPC(design)
+        if isinstance(source, pd.DataFrame):
+            self.orbit = source.query('ztfname == @self.name')
+        elif source == 'MPC':
+            self.orbit = queryMPC(desig)
         else:
             self.orbit = queryJPL(desig)
         self.Orb.setOrbits(self.orbit)
