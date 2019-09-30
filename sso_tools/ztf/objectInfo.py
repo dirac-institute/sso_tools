@@ -247,8 +247,11 @@ class AsteroidObj():
         t = np.arange(self.obs.mjd.min(), self.obs.mjd.max()+0.5, 1.0)
         self.ephMags['t'] = t + 2400000.5
         ephsT = self.pyOrb.generateEphemerides(t, timeScale='UTC', obscode='I41')
+        self.H = {}
         for f in self.filterlist:
             self.ephMags[f] = ephsT[0]['magV'] + self.offsets[f]
+            self.H['V'] = self.orbit.H
+            self.H[f] = self.orbit.H + self.offsets[f]
 
     def translate_df(self, pred='oo'):
         """Translate object observation DataFrame into the columns/format for lc_utils code.
