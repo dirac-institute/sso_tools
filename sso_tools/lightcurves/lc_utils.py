@@ -70,6 +70,22 @@ class LCObject():
         self.filterlist = self.lcobs.fid.unique()
         self.nobs = len(self.lcobs)
         self.nnights = len(self.lcobs.night.unique())
+        gobs = self.lcobs.query('fid == @filterdict_inv["g"]')
+        if len(gobs) > 0:
+            self.med_g = np.median(gobs.mag)
+            g_range = gobs.mag.max() - gobs.mag.min()
+        else:
+            self.med_g = -999
+            g_range = 0
+        robs = self.lcobs.query('fid == @filterdict_inv["r"]')
+        if len(robs) > 0:
+            self.med_r = np.median(robs.mag)
+            r_range = robs.mag.max() - robs.mag.min()
+        else:
+            self.med_r = -999
+            r_range = 0
+        self.mag_range = np.max([g_range, r_range])
+        self.med_sigma = np.median(self.lcobs.sigmamag)
 
     def outlier_rejection(self):
         # Calculate RMS.
@@ -188,15 +204,11 @@ class LCObject():
     def calc_chisq(self, period=None):
         if period is None:
             period = self.best_period
-        z = None
+        self.chis2 = 0
         for f in self.filterlist:
             o = self.lcobs.query('fid == @f')
             predictions = self.make_predictions(o.jd.values, period)
-            if z is None:
-                z = (o.magcorr - predictions[f]) / o.sigmamag
-            else:
-                z = z.append((o.magcorr - predictions[f]) / o.sigmamag)
-        self.chis2 = np.sum(z ** 2)
+            self.chisq += ((o.magcorr - predictions[f])/o.sigmamag)**2).sum()
         self.chis2dof = self.chis2 / (self.nobs - 1)
 
     def make_auto_periodogram(self):

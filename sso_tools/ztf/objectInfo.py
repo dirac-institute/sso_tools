@@ -199,6 +199,16 @@ class AsteroidObj():
             print('Filter %s (%s) has %d observations' % (f, filterdict[f], len(o)))
         self.nobs = len(self.obs)
         self.nnights = len(self.obs.nid.unique())
+        gobs = self.obs.query('fid == @filterdict_inv["g"]')
+        if len(gobs) > 0:
+            self.med_g = np.median(gobs[self.magcol])
+        else:
+            self.med_g = -999
+        robs = self.obs.query('fid == @filterdict_inv["r"]')
+        if len(robs) > 0:
+            self.med_r = np.median(robs[self.magcol])
+        else:
+            self.med_r = -999
 
     def setOrbit(self, source='SBDB'):
         """Query JPL SBDB for orbit and physical properties, sets up internal orbit/ephemeris objects."""
@@ -378,8 +388,15 @@ class AsteroidObj():
         plt.gca().invert_yaxis()
         plt.title(self.name)
         if len(self.filterlist) > 1:
-            f0 = self.filterlist[0]
-            f1 = self.filterlist[1]
+            if 1 in self.filterlist:
+                f0 = 1
+                if 2 in self.filterlist:
+                    f1 = 2
+                else:
+                    f2 = self.filterlist[1]
+            else:
+                f0 = self.filterlist[0]
+                f1 = self.filterlist[1]
             colorname = '%s-%s' % (filterdict[f0], filterdict[f1])
             color = (self.obs.query('fid == @f0').magpsf.mean()
                      - self.obs.query('fid == @f1').magpsf.mean())
