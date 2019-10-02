@@ -1,5 +1,6 @@
 import os
 import argparse
+import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 from sso_tools import ztf
@@ -46,7 +47,7 @@ def fit_lightcurves(alertfile, objfile, orbitfile, outputfile):
 
         fig = figs['corrphot']
         fig.savefig('%s_corrphot.png' % nameroot, format='png')
-        import pickle
+
         with open('%s_pickle' % nameroot, 'wb') as m:
             pickle.dump(lcobj, m)
         fig = figs['phased']
