@@ -4,7 +4,7 @@ import pickle
 import pandas as pd
 import matplotlib.pyplot as plt
 from sso_tools import ztf
-from sso_tools import lightcurves as lcu
+from sso_tools import lightcurves as lcc
 
 
 filterdict = {1: 'g', 2: 'r', 3: 'i'}
@@ -19,11 +19,11 @@ def fit_lightcurves(alertfile, objfile, orbitfile, outputfile):
         for line in o:
             objnames.append(line.rstrip('\n'))
 
-    all_sso = ztf.read_alert_datafile('ztf_alerts_sso.csv')
-    print("# Total SSO alerts %d" % len(all_sso), file=log)
-    print("# Number of different objects %d" % len(all_sso.groupby('ssnamenr')), file=log)
-    print("# Number of nights included %d" % len(all_sso.groupby('nid')), file=log)
-    print("# Looking for %d objects in this run." % (len(objnames)), file=log)
+    all_sso = ztf.read_alert_datafile(alertfile)
+    print("# Total SSO alerts %d" % len(all_sso))
+    print("# Number of different objects %d" % len(all_sso.groupby('ssnamenr')))
+    print("# Number of nights included %d" % len(all_sso.groupby('nid')))
+    print("# Looking for %d objects in this run." % (len(objnames)))
 
     if orbitfile is not None:
         orbits = pd.read_csv(orbitfile)
@@ -35,12 +35,16 @@ def fit_lightcurves(alertfile, objfile, orbitfile, outputfile):
     output.write('%s\n' % header)
     output.flush()
 
-    for name in objfile:
-        nameroot = name.replace('/', '-')
+    for name in objnames:
+        print("# Working on %s" % name)
+        if not isinstance(name, int):
+            nameroot = name.replace('/', '-')
         ast = ztf.AsteroidObj()
         ast.getObs(all_sso=all_sso, ztfname=name)
         ast.setOrbit(orbits)
         ast.add_oorb_magcorr()
+        fig = ast.vis_psf_ap_photometry()
+        fig.savefig('%s_phot.png' % nameroot, format='png')
         lcobs = ast.translate_df()
         lcobj = lcc.LCObject(Nterms_base=2, Nterms_band=0, nsigma=3)
         figs = lcobj(lcobs, ast.offsets)
@@ -60,10 +64,10 @@ def fit_lightcurves(alertfile, objfile, orbitfile, outputfile):
         nobs_r = len(lcobj.lcobs.query('fid == 2'))
         nobs_i = len(lcobj.lcobs.query('fid == 3'))
         nnights = len(lcobj.lcobs.night.unique())
-        obs_len = lcobj.obs.jd.max() - lcobj.lcobs.jd.min()
+        obs_len = lcobj.lcobs.jd.max() - lcobj.lcobs.jd.min()
         period = lcobj.best_period * 24
         datstr = f'{name},{nobs},{n_reject},{nobs_g},{nobs_r},{nobs_i},{nnights},{obs_len}'
-        datstr += f'{lcobj.gr},{lcobj.ri},{ast.orbit.H},{lcobj.med_g},{lcobj.med_r},{lcobj.mag_range},'
+        datstr += f'{lcobj.gr},{lcobj.ri},{ast.orbit.H.values[0]},{lcobj.med_g},{lcobj.med_r},{lcobj.mag_range},'
         datstr += f'{period},{lcobj.model.best_period * 24},{lcobj.med_sigma},{lcobj.amp},{lcobj.chis2dof}'
         output.write("%s\n" % datstr)
         output.flush()
@@ -87,4 +91,4 @@ if __name__ == '__main__':
     if args.outputfile is None:
         args.outputfile = args.objfile.replace('.dat', '') + "_data.csv"
 
-    fit_all_lightcurves(args.alertfile, args.objfile, args.orbitfile, args.outputfile)
+    fit_lightcurves(args.alertfile, args.objfile, args.orbitfile, args.outputfile)

@@ -70,14 +70,14 @@ class LCObject():
         self.filterlist = self.lcobs.fid.unique()
         self.nobs = len(self.lcobs)
         self.nnights = len(self.lcobs.night.unique())
-        gobs = self.lcobs.query('fid == @filterdict_inv["g"]')
+        gobs = self.lcobs.query('fid == 1')
         if len(gobs) > 0:
             self.med_g = np.median(gobs.mag)
             g_range = gobs.mag.max() - gobs.mag.min()
         else:
             self.med_g = -999
             g_range = 0
-        robs = self.lcobs.query('fid == @filterdict_inv["r"]')
+        robs = self.lcobs.query('fid == 2')
         if len(robs) > 0:
             self.med_r = np.median(robs.mag)
             r_range = robs.mag.max() - robs.mag.min()
@@ -208,7 +208,7 @@ class LCObject():
         for f in self.filterlist:
             o = self.lcobs.query('fid == @f')
             predictions = self.make_predictions(o.jd.values, period)
-            self.chisq += ((o.magcorr - predictions[f])/o.sigmamag)**2).sum()
+            self.chis2 += (((o.magcorr - predictions[f])/o.sigmamag)**2).sum()
         self.chis2dof = self.chis2 / (self.nobs - 1)
 
     def make_auto_periodogram(self):

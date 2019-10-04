@@ -199,12 +199,12 @@ class AsteroidObj():
             print('Filter %s (%s) has %d observations' % (f, filterdict[f], len(o)))
         self.nobs = len(self.obs)
         self.nnights = len(self.obs.nid.unique())
-        gobs = self.obs.query('fid == @filterdict_inv["g"]')
+        gobs = self.obs.query('fid == 1')
         if len(gobs) > 0:
             self.med_g = np.median(gobs[self.magcol])
         else:
             self.med_g = -999
-        robs = self.obs.query('fid == @filterdict_inv["r"]')
+        robs = self.obs.query('fid == 2')
         if len(robs) > 0:
             self.med_r = np.median(robs[self.magcol])
         else:
