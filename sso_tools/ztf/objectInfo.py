@@ -30,7 +30,9 @@ def queryJPL(designation):
     pd.Series
         Series containing orbit and select physical information.
     """
-    sbdb = SBDB.query(designation, phys=True)
+    sbdb = SBDB.query(designation, phys=True, full_precision=True)
+    if orbit not in sbdb:
+        raise ValueError('Problem identifying orbit in returned information: %s', sbdb)
     orbval = sbdb['orbit']['elements']
     phys = sbdb['phys_par']
     if 'diameter' in phys:
@@ -92,7 +94,7 @@ def queryMPC(designation):
         number = int(designation)
         mpc = MPC.query_object('asteroid', number=number)
     except ValueError:
-        mpc = MPC.query_object('asteroid', name=designation)
+        mpc = MPC.query_object('asteroid', designation=designation)
     mpc = mpc[0]
     orbit = pd.Series(data={'des': designation,
                             'fullname': mpc['name'],
