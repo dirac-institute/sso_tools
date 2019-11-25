@@ -39,12 +39,20 @@ def read_alcdef(filename, datadir='.'):
             metadata.append(mi)
             lc.append(li)
         if d.startswith('DATA'):
-            tmpvals = d.rstrip('\n').lstrip('DATA=').split(delimiter)
-            if tmpvals[2] == '':
-                tmpvals[2] = -66
-            if tmpvals[3] == '':
-                tmpvals[3] = -66
-            li.append([float(tmpvals[0]), float(tmpvals[1]), float(tmpvals[2]), float(tmpvals[3])])
+            tmpvals = d.replace('DATA=', '').replace('\n', '').split(delimiter)
+            t = tmpvals[0] 
+            mag = tmpvals[1]
+            umag = -66
+            airmass = -66
+            if len(tmpvals) > 3:
+                umag = tmpvals[2]
+                if umag == '':
+                    umag = -66
+            if len(tmpvals) > 4:
+                airmass = tmpvals[3]
+                if airmass == '':
+                    airmass = -66
+            li.append([float(t), float(mag), float(umag), float(airmass)])
         else:
             if d.startswith('STARTMETADATA') or d.startswith('ENDMETADATA') or d.startswith('ENDDATA'):
                 continue
@@ -106,9 +114,10 @@ def plot_alcdef(metadata, lc, filename):
                   % metadata[i]['UCORMAG'])
         if metadata[i]['DIFFERMAGS']:
             print('Reported differential magnitudes')
-            if metadata[i]['MAGADJUST'] != '0.0':
-                print('A suggested correction of %s could place these onto a standard system'
-                      % metadata[i]['MAGADJUST'])
+            if 'MAGADJUST' in metadata[i]:
+                if metadata[i]['MAGADJUST'] != '0.0':
+                    print('A suggested correction of %s could place these onto a standard system'
+                          % metadata[i]['MAGADJUST'])
         else:
             print('Reported standard magnitudes, using %s refcat' % metadata[i]['STANDARD'])
         if metadata[i]['LTCAPP'] == 'AVERAGE':
