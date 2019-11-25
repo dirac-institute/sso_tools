@@ -31,7 +31,7 @@ def queryJPL(designation):
         Series containing orbit and select physical information.
     """
     sbdb = SBDB.query(designation, phys=True, full_precision=True)
-    if orbit not in sbdb:
+    if 'orbit' not in sbdb:
         raise ValueError('Problem identifying orbit in returned information: %s', sbdb)
     orbval = sbdb['orbit']['elements']
     phys = sbdb['phys_par']
