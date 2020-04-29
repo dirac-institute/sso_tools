@@ -91,4 +91,5 @@ if __name__ == '__main__':
     if args.outputfile is None:
         args.outputfile = args.objfile.replace('.dat', '') + "_data.csv"
 
+    print('job: %s' % args)
     fit_lightcurves(args.alertfile, args.objfile, args.orbitfile, args.outputfile)
