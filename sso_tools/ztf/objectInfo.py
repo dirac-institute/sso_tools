@@ -44,7 +44,7 @@ def queryJPL(designation):
     else:
         albedo = np.NaN
     if 'H' in phys:
-        H = phys['H']
+        H = float(phys['H'])
     else:
         H = 999.
     if 'rot_per' in phys:
