@@ -1,0 +1,8 @@
+numpy
+matplotlib
+pandas
+scipy
+gatspy
+sbpy
+openorb
+openorb-data-de405
